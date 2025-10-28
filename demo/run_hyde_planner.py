@@ -112,17 +112,17 @@ async def run_hyde_planner(env: Environment, model: str, query: str, time_period
         doc, p, c = await phase_1_generate_hypothetical_document(env, model, query)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["1_hypothetical_document"] = doc
-        with st.expander("Phase 1: Hypothetical Document", expanded=True): st.markdown(doc)
+        with st.expander("Phase 1: Hypothetical Document", expanded=False): st.markdown(doc)
 
         plan, p, c = await phase_2_reverse_engineer_plan(env, model, doc, use_arxiv=use_arxiv, use_finance=use_finance)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["2_research_plan"] = plan
         if plan:
-            with st.expander("Phase 2: Research Plan", expanded=True): st.json(plan)
+            with st.expander("Phase 2: Research Plan", expanded=False): st.json(plan)
             evidence = phase_3_execute_plan_and_verify(env, plan, time_period, search_depth, use_jina_api, search_pdfs, pdf_processing_method, use_arxiv, use_finance)
             log_data["phases"]["3_collected_evidence"] = evidence
             if evidence:
-                with st.expander("Phase 3: Execution & Verification", expanded=True): st.json(evidence)
+                with st.expander("Phase 3: Execution & Verification", expanded=False): st.json(evidence)
                 final_answer, p, c = await phase_4_synthesize_final_answer(env, model, query, plan, evidence)
                 tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
                 log_data["phases"]["4_final_answer"] = final_answer
@@ -144,7 +144,7 @@ async def run_direct_search(env: Environment, model: str, query: str, time_perio
         tracking = {"prompt_tokens": 0, "completion_tokens": 0, "total_cost": 0.0}
 
         search_results = google_search(env, query, time_period=time_period, use_jina_api=use_jina_api, search_pdfs=search_pdfs, pdf_processing_method=pdf_processing_method)
-        with st.expander("Search Results", expanded=True):
+        with st.expander("Search Results", expanded=False):
             st.json(search_results)
             log_data["phases"]["direct_search_results"] = search_results
 
@@ -177,7 +177,7 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
         if not sub_queries:
             st.warning("Could not decompose the query."); return
         log_data["phases"]["1_decomposed_queries"] = sub_queries
-        with st.expander("Decomposed Sub-Queries", expanded=True): st.json(sub_queries)
+        with st.expander("Decomposed Sub-Queries", expanded=False): st.json(sub_queries)
 
         evidence = {}
         for sub_query in sub_queries:
@@ -203,7 +203,7 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
             # Use a string representation of the sub_query dict as the key
             evidence[json.dumps(sub_query)] = search_results
 
-        with st.expander("Collected Evidence", expanded=True):
+        with st.expander("Collected Evidence", expanded=False):
             st.json(evidence)
             log_data["phases"]["2_collected_evidence"] = evidence
 
@@ -235,7 +235,7 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
             tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
             action = json_repair.loads(response_text)
             
-            with st.expander(f"Step {i+1}: Thought Process", expanded=True): st.json(action)
+            with st.expander(f"Step {i+1}: Thought Process", expanded=False): st.json(action)
             
             if action.get("is_final_answer", False) or not action.get("next_query"):
                 break
@@ -270,19 +270,19 @@ async def run_priority_hyde_planner(env: Environment, model: str, query: str, ti
         doc, p, c = await phase_1_generate_hypothetical_document(env, model, query)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["1_hypothetical_document"] = doc
-        with st.expander("Phase 1: Hypothetical Document", expanded=True): st.markdown(doc)
+        with st.expander("Phase 1: Hypothetical Document", expanded=False): st.markdown(doc)
 
         plan, p, c = await phase_2_reverse_engineer_plan(env, model, doc, use_arxiv=use_arxiv, use_finance=use_finance)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["2_research_plan"] = plan
         if plan:
-            with st.expander("Phase 2: Research Plan (Sorted by Priority)", expanded=True): st.json(plan)
+            with st.expander("Phase 2: Research Plan (Sorted by Priority)", expanded=False): st.json(plan)
             
             # phase_3 automatically sorts claims now
             evidence = phase_3_execute_plan_and_verify(env, plan, time_period, search_depth, use_jina_api, search_pdfs, pdf_processing_method, use_arxiv, use_finance)
             log_data["phases"]["3_collected_evidence"] = evidence
             if evidence:
-                with st.expander("Phase 3: Execution & Verification (Priority Order)", expanded=True): st.json(evidence)
+                with st.expander("Phase 3: Execution & Verification (Priority Order)", expanded=False): st.json(evidence)
                 
                 final_answer, p, c = await phase_4_synthesize_final_answer(env, model, query, plan, evidence)
                 tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
@@ -308,8 +308,7 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
         st.subheader("Step 1: Initial Hypothesis and Verification")
         doc, p, c = await phase_1_generate_hypothetical_document(env, model, query)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
-        log_data["phases"]["1_initial_document"] = doc
-        with st.expander("Step 1.1: Initial Hypothetical Document", expanded=True): st.markdown(doc)
+        with st.expander("Step 1.1: Initial Hypothetical Document", expanded=False): st.markdown(doc)
 
         plan, p, c = await phase_2_reverse_engineer_plan(env, model, doc, use_arxiv=use_arxiv, use_finance=use_finance)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
@@ -318,7 +317,7 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
             st.error("Failed to generate an initial plan.")
             return
 
-        with st.expander("Step 1.2: Initial Research Plan", expanded=True): st.json(plan)
+        with st.expander("Step 1.2: Initial Research Plan", expanded=False): st.json(plan)
         
         depth_map = {
             "Re-plan after High priority": "High priority only",
@@ -329,7 +328,7 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
 
         evidence = phase_3_execute_plan_and_verify(env, plan, time_period, search_depth, use_jina_api, search_pdfs, pdf_processing_method, use_arxiv, use_finance)
         log_data["phases"]["1.3_initial_evidence"] = evidence
-        with st.expander(f"Step 1.3: Initial Evidence ({search_depth})", expanded=True): st.json(evidence)
+        with st.expander(f"Step 1.3: Initial Evidence ({search_depth})", expanded=False): st.json(evidence)
 
         # --- STEP 2: Re-planning based on initial evidence ---
         st.subheader("Step 2: Synthesis, Re-planning, and Final Verification")
@@ -338,7 +337,7 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
         initial_synthesis, p, c = await phase_4_synthesize_final_answer(env, model, query, plan, evidence)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["2.1_intermediate_synthesis"] = initial_synthesis
-        with st.expander("Step 2.1: Intermediate Synthesis", expanded=True): st.markdown(initial_synthesis)
+        with st.expander("Step 2.1: Intermediate Synthesis", expanded=False): st.markdown(initial_synthesis)
 
         # Re-run HyDE with the context of the initial synthesis
         st.info("Generating a new, improved hypothetical document based on initial findings...")
@@ -346,7 +345,7 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
         doc2, p, c = await phase_1_generate_hypothetical_document(env, model, refined_query)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["2.2_refined_document"] = doc2
-        with st.expander("Step 2.2: Refined Hypothetical Document", expanded=True): st.markdown(doc2)
+        with st.expander("Step 2.2: Refined Hypothetical Document", expanded=False): st.markdown(doc2)
 
         # Re-run PRE to get a new plan
         plan2, p, c = await phase_2_reverse_engineer_plan(env, model, doc2, use_arxiv=use_arxiv, use_finance=use_finance)
@@ -357,12 +356,12 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
             # Fallback to synthesizing from the first batch of evidence
             final_answer = initial_synthesis
         else:
-            with st.expander("Step 2.3: Refined Research Plan", expanded=True): st.json(plan2)
+            with st.expander("Step 2.3: Refined Research Plan", expanded=False): st.json(plan2)
             
             # Execute the new plan (all priorities)
             evidence2 = phase_3_execute_plan_and_verify(env, plan2, time_period, "All priorities", use_jina_api, search_pdfs, pdf_processing_method, use_arxiv, use_finance)
             log_data["phases"]["2.4_final_evidence"] = evidence2
-            with st.expander("Step 2.4: Final Evidence Collection", expanded=True): st.json(evidence2)
+            with st.expander("Step 2.4: Final Evidence Collection", expanded=False): st.json(evidence2)
 
             # Final Synthesis
             final_answer, p, c = await phase_4_synthesize_final_answer(env, model, query, plan2, evidence2)
@@ -390,7 +389,7 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
         doc, p, c = await phase_1_generate_hypothetical_document(env, model, query)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["1.1_initial_document"] = doc
-        with st.expander("Step 1.1: Initial Hypothetical Document", expanded=True): st.markdown(doc)
+        with st.expander("Step 1.1: Initial Hypothetical Document", expanded=False): st.markdown(doc)
 
         plan, p, c = await phase_2_reverse_engineer_plan(env, model, doc, use_arxiv=use_arxiv, use_finance=use_finance)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
@@ -398,16 +397,16 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
         if not plan:
             st.error("Failed to generate an initial plan.")
             return
-        with st.expander("Step 1.2: Initial Research Plan", expanded=True): st.json(plan)
+        with st.expander("Step 1.2: Initial Research Plan", expanded=False): st.json(plan)
 
         evidence = phase_3_execute_plan_and_verify(env, plan, time_period, search_depth, use_jina_api, search_pdfs, pdf_processing_method, use_arxiv, use_finance)
         log_data["phases"]["1.3_initial_evidence"] = evidence
-        with st.expander("Step 1.3: Initial Evidence Collection", expanded=True): st.json(evidence)
+        with st.expander("Step 1.3: Initial Evidence Collection", expanded=False): st.json(evidence)
 
         first_pass_answer, p, c = await phase_4_synthesize_final_answer(env, model, query, plan, evidence)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["1.4_first_pass_answer"] = first_pass_answer
-        with st.expander("Step 1.4: First-Pass Answer", expanded=True): st.markdown(first_pass_answer)
+        with st.expander("Step 1.4: First-Pass Answer", expanded=False): st.markdown(first_pass_answer)
 
         # --- STEP 2: Reflection and Refinement ---
         st.subheader("Step 2: Reflection and Refinement")
@@ -415,8 +414,8 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["2.1_gap_analysis"] = gap_analysis
         log_data["phases"]["2.2_gap_evidence"] = gap_evidence
-        with st.expander("Step 2.1: Information Gap Analysis", expanded=True): st.json(gap_analysis)
-        with st.expander("Step 2.2: Evidence for Information Gap", expanded=True): st.json(gap_evidence)
+        with st.expander("Step 2.1: Information Gap Analysis", expanded=False): st.json(gap_analysis)
+        with st.expander("Step 2.2: Evidence for Information Gap", expanded=False): st.json(gap_evidence)
 
         final_answer, p, c = await phase_7_synthesize_with_reflection(env, model, query, first_pass_answer, gap_evidence)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c

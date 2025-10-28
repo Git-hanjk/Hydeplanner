@@ -50,7 +50,7 @@ def get_financial_statements(ticker_symbol: str):
 
         # Convert dataframes to JSON
         statements = {
-            "income_statement": income_stmt.to_json(orient='split'),
+        "income_statement": income_stmt.to_json(orient='split'),
             "balance_sheet": balance_sheet.to_json(orient='split'),
             "cash_flow": cash_flow.to_json(orient='split')
         }
