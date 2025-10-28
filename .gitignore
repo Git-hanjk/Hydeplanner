@@ -13,3 +13,6 @@ ENV/
 .env
 .env.local.env
 .env
+
+faiss_index/
+local_docs/

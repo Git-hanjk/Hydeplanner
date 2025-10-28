@@ -41,7 +41,7 @@ Now, please generate the detailed hypothetical document based on the following i
 (The most unexpected or counter-intuitive hypothesis that, if true, would have a significant impact. Provide specific rationale and claims for it...)
 """
 
-def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False) -> str:
+def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     [개선된 프롬프트] 2단계: 계획 역설계 (PRE)를 위한 프롬프트를 생성합니다.
     
@@ -57,6 +57,8 @@ def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: b
         available_tools.append("arxiv_search")
     if use_finance:
         available_tools.append("yahoo_finance")
+    if use_local_search:
+        available_tools.append("local_search")
     tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
 
     finance_claim_example = ""
@@ -207,7 +209,7 @@ END OF CLAIMS, QUERIES, AND EVIDENCE ---
 Now, please synthesize the final, verified analysis based *only* on the provided evidence, following all the rules above.
 """
 
-def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False) -> str:
+def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     Generates a prompt to decompose a complex query into several simpler sub-queries.
     """
@@ -216,6 +218,8 @@ def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_fina
         available_tools.append("arxiv_search")
     if use_finance:
         available_tools.append("yahoo_finance")
+    if use_local_search:
+        available_tools.append("local_search")
     tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
 
     return f"""
@@ -252,7 +256,7 @@ User Query: "{query}"
 Now, generate the JSON object with the decomposed sub-queries.
 """
 
-def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False) -> str:
+def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     Generates a prompt for the reflection step in a sequential search process.
     """
@@ -261,6 +265,8 @@ def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool
         available_tools.append("arxiv_search")
     if use_finance:
         available_tools.append("yahoo_finance")
+    if use_local_search:
+        available_tools.append("local_search")
     tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
 
     return f"""
@@ -373,7 +379,7 @@ END OF SEARCH RESULTS ---
 Now, please synthesize the final, verified analysis based only on the provided search results, following all the rules above.
 """
 
-def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False) -> str:
+def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     Generates a prompt to identify information gaps in a first-pass answer and create a search query.
     """
@@ -382,6 +388,8 @@ def get_information_gap_prompt(original_query: str, first_pass_answer: str, prev
         available_tools.append("arxiv_search")
     if use_finance:
         available_tools.append("yahoo_finance")
+    if use_local_search:
+        available_tools.append("local_search")
     tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
     previous_queries_str = "\n".join(f"- {q}" for q in previous_queries)
 

@@ -162,13 +162,13 @@ def extract_pdf_text(url: str) -> str:
         print(f"Error extracting text from PDF {url}: {e}")
         return None
 
-def get_content_from_url(url: str, jina_api_key: str = None, pdf_processing_method: str = "Keyword Match (Fast)", query: str = "") -> str:
+def get_content_from_url(url: str, jina_api_key: str = None, pdf_processing_method: str = "Keyword Match (Fast)", query: str = "", save_pdf_embeddings: bool = False) -> str:
     """
     Fetches content from a URL, handling PDFs and using Jina API with rate limiting.
     """
     if url.lower().endswith('.pdf'):
         if pdf_processing_method == "Embedding Search (Accurate)":
-            return process_pdf_with_embeddings(url, query)
+            return process_pdf_with_embeddings(url, query, save_embeddings=save_pdf_embeddings)
         else: # Fallback to keyword match
             return extract_pdf_text(url)
 
@@ -202,7 +202,7 @@ def get_content_from_url(url: str, jina_api_key: str = None, pdf_processing_meth
 
 # --- Main Search Function ---
 
-def process_search_item(item: Dict, jina_api_key: str, use_jina_api: bool, pdf_processing_method: str, query: str) -> Dict:
+def process_search_item(item: Dict, jina_api_key: str, use_jina_api: bool, pdf_processing_method: str, query: str, save_pdf_embeddings: bool) -> Dict:
     """
     Worker function to process a single search result item.
     """
@@ -212,7 +212,7 @@ def process_search_item(item: Dict, jina_api_key: str, use_jina_api: bool, pdf_p
     key_to_use = jina_api_key if use_jina_api else None
     
     # Pass the query for context, especially for PDF processing
-    full_content = get_content_from_url(link, key_to_use, pdf_processing_method, query)
+    full_content = get_content_from_url(link, key_to_use, pdf_processing_method, query, save_pdf_embeddings)
     
     snippet = original_snippet
     if full_content:
@@ -226,7 +226,7 @@ def process_search_item(item: Dict, jina_api_key: str, use_jina_api: bool, pdf_p
     
     return {"title": item.get("title"), "link": link, "snippet": snippet}
 
-def google_search(env: Environment, query: str, num_results: int = 3, time_period: str = "Any time", use_jina_api: bool = True, search_pdfs: bool = False, pdf_processing_method: str = "Keyword Match (Fast)") -> List[Dict]:
+def google_search(env: Environment, query: str, num_results: int = 3, time_period: str = "Any time", use_jina_api: bool = True, search_pdfs: bool = False, pdf_processing_method: str = "Keyword Match (Fast)", save_pdf_embeddings: bool = False) -> List[Dict]:
     """
     Performs a Google search with retries and concurrently fetches content.
     """
@@ -290,7 +290,7 @@ def google_search(env: Environment, query: str, num_results: int = 3, time_perio
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Pass the main query to the worker for context
-            future_to_item = {executor.submit(process_search_item, item, jina_api_key, use_jina_api, pdf_processing_method, query): item for item in items}
+            future_to_item = {executor.submit(process_search_item, item, jina_api_key, use_jina_api, pdf_processing_method, query, save_pdf_embeddings): item for item in items}
             for future in concurrent.futures.as_completed(future_to_item):
                 try:
                     result = future.result()
