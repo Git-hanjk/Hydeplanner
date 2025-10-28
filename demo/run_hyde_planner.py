@@ -472,10 +472,16 @@ def phase_3_execute_plan_and_verify(env: Environment, plan: dict, time_period: s
     return evidence
 async def phase_4_synthesize_final_answer(env: Environment, model: str, original_query: str, plan: dict, evidence: dict) -> Tuple[str, int, int]:
     st.info("Phase 4: Synthesizing Final Answer...")
+    
+    # Combine claims and evidence into a single structure for the prompt
+    claims_and_evidence = {
+        "claims": plan.get("claims_to_verify", []),
+        "evidence": evidence
+    }
+    
     prompt = get_verification_and_synthesis_prompt(
         original_query=original_query,
-        claims=plan.get("claims_to_verify", []),
-        evidence=evidence
+        evidence=claims_and_evidence
     )
     
     answer, p_tokens, c_tokens = await call_llm(env, model, prompt)
@@ -552,11 +558,23 @@ def main():
         options=["gemini-2.5-pro", "gemini-2.5-flash"],
         index=0
     )
-    time_period = st.sidebar.selectbox(
-        "Search Time Period",
-        options=["Any time", "Past year", "Past month", "Past week"],
+    
+    st.sidebar.subheader("Search Time Period")
+    time_period_option = st.sidebar.selectbox(
+        "Select a time period",
+        options=["Any time", "Past year", "Past month", "Past week", "Custom range"],
         index=0
     )
+    
+    time_period = ""
+    if time_period_option == "Custom range":
+        start_date = st.sidebar.date_input("Start date")
+        end_date = st.sidebar.date_input("End date")
+        if start_date and end_date and start_date <= end_date:
+            time_period = f"{start_date.strftime('%Y%m%d')}..{end_date.strftime('%Y%m%d')}"
+    else:
+        time_period = time_period_option
+
     log_to_file = st.sidebar.checkbox("Save run log to file", value=True)
     use_jina_api = st.sidebar.checkbox("Use Jina AI API for content extraction", value=True)
     search_pdfs = st.sidebar.checkbox("Include PDF results in search", value=False)
@@ -617,6 +635,9 @@ def main():
             return
         if not selected_methods:
             st.sidebar.warning("Please select at least one methodology.")
+            return
+        if time_period_option == "Custom range" and not time_period:
+            st.sidebar.warning("Please select a valid custom date range.")
             return
 
         methods_to_run = available_methods if "Compare All" in selected_methods else selected_methods

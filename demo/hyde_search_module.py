@@ -245,12 +245,18 @@ def google_search(env: Environment, query: str, num_results: int = 3, time_perio
         service = build("customsearch", "v1", developerKey=api_key)
         
         # --- Date Restriction Logic ---
-        date_restrict_map = {
-            "Past year": "y1",
-            "Past 6 months": "m6",
-            "Past month": "m1"
-        }
-        date_restrict = date_restrict_map.get(time_period)
+        date_restrict = None
+        # Check for custom date range format YYYYMMDD..YYYYMMDD
+        if re.match(r"\d{8}..\d{8}", time_period):
+            date_restrict = time_period
+        else:
+            date_restrict_map = {
+                "Past year": "y1",
+                "Past 6 months": "m6",
+                "Past month": "m1",
+                "Past week": "w1" # Added past week for consistency
+            }
+            date_restrict = date_restrict_map.get(time_period)
         
         search_kwargs = {'q': query, 'cx': cse_id, 'num': num_results}
         if date_restrict:
