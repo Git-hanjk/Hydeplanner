@@ -181,7 +181,28 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
 
         evidence = {}
         for sub_query in sub_queries:
-            evidence[sub_query] = google_search(env, sub_query, time_period=time_period, use_jina_api=use_jina_api, search_pdfs=search_pdfs, pdf_processing_method=pdf_processing_method)
+            tool = sub_query.get("tool", "google_search")
+            query_text = sub_query.get("query")
+
+            if not query_text:
+                continue
+
+            st.write(f"  - Executing: `{query_text}` with tool `{tool}`")
+
+            search_results = None
+            if tool == "google_search":
+                search_results = google_search(env, query_text, time_period=time_period, use_jina_api=use_jina_api, search_pdfs=search_pdfs, pdf_processing_method=pdf_processing_method)
+            elif tool == "arxiv_search":
+                search_results = arxiv_search(query_text)
+            elif tool == "yahoo_finance":
+                search_results = finance_search(query_text)
+            else:
+                st.warning(f"Tool '{tool}' is not recognized. Skipping.")
+                search_results = {"error": f"Tool '{tool}' is not recognized."}
+            
+            # Use a string representation of the sub_query dict as the key
+            evidence[json.dumps(sub_query)] = search_results
+
         with st.expander("Collected Evidence", expanded=True):
             st.json(evidence)
             log_data["phases"]["2_collected_evidence"] = evidence
