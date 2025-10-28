@@ -1,0 +1,14 @@
+streamlit
+python-dotenv
+openai
+google-generativeai
+google-api-python-client
+beautifulsoup4
+pdfplumber
+requests
+json-repair
+pandas
+sentence-transformers
+faiss-cpu
+langchain
+langchain-text-splitters

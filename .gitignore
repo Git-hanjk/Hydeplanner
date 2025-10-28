@@ -1,0 +1,15 @@
+# 로그 파일 제외
+logs/
+*.log
+# Virtual environments
+venv/
+.venv/
+≈env/
+*/*/venv/
+env/
+ENV/
+
+
+.env
+.env.local.env
+.env
