@@ -41,7 +41,7 @@ Now, please generate the detailed hypothetical document based on the following i
 (The most unexpected or counter-intuitive hypothesis that, if true, would have a significant impact. Provide specific rationale and claims for it...)
 """
 
-def get_plan_reverse_engineering_prompt(hypothetical_document: str) -> str:
+def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False) -> str:
     """
     [개선된 프롬프트] 2단계: 계획 역설계 (PRE)를 위한 프롬프트를 생성합니다.
     
@@ -52,14 +52,34 @@ def get_plan_reverse_engineering_prompt(hypothetical_document: str) -> str:
        새로운 '탐색적 쿼리(exploratory queries)'를 생성합니다.
     """
     
+    available_tools = ["google_search"]
+    if use_arxiv:
+        available_tools.append("arxiv_search")
+    if use_finance:
+        available_tools.append("yahoo_finance")
+    tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
+
+    finance_claim_example = ""
+    if use_finance:
+        finance_claim_example = """
+    {{
+      "claim_id": 3,
+      "claim_text": "A financial claim about a specific company.",
+      "priority": "medium",
+      "tool": "yahoo_finance",
+      "verification_query": "CATL",
+      "depends_on": []
+    }}"""
+
     return f"""
 You are a **Skeptical Chief of Research and Expert Research Planner**.
 Your task is twofold:
 1.  **Deconstruct & Verify:** Deconstruct the following document to create a plan to verify its core claims.
 2.  **Critique & Expand:** Critically analyze what this document might be **missing** or what core assumption it relies on. Identify the most significant **non-obvious angle, alternative hypothesis, or strategic mechanism** (e.g., a specific legal loophole, a unique policy, a key government statement) that the document overlooks. Then, add **new exploratory search queries** to investigate this missing angle.
 
-You have one tool: `Google Search`.
+You have the following tools: {tools_string}.
 Your plan must be a single JSON object.
+Only use the tools listed above. For financial queries, use the company's stock ticker symbol (e.g., "TSLA", "AAPL") as the query for `yahoo_finance`. For academic papers, use `arxiv_search`.
 
 **JSON Structure:**
 {{
@@ -73,7 +93,15 @@ Your plan must be a single JSON object.
       "tool": "google_search",
       "verification_query": "latest advancements in perovskite solar cell efficiency 2024",
       "depends_on": []
-    }}
+    }},
+    {{
+      "claim_id": 2,
+      "claim_text": "A technical claim about a specific scientific breakthrough.",
+      "priority": "high",
+      "tool": "arxiv_search",
+      "verification_query": "graphene battery energy density",
+      "depends_on": []
+    }}{finance_claim_example}
   ],
   "exploratory_queries": [
     {{
@@ -82,31 +110,16 @@ Your plan must be a single JSON object.
       "priority": "high",
       "tool": "google_search",
       "verification_query": "economic impact of green hydrogen subsidies Europe"
-    }},
-    {{
-      "claim_id": 102,
-      "claim_text": "(Exploratory) Find high-authority statements (e.g., government officials, corporate leadership) confirming this mechanism.",
-      "priority": "high",
-      "tool": "google_search",
-      "verification_query": "geopolitical risks of rare earth mineral supply chains for batteries"
-    }},
-    {{
-      "claim_id": 103,
-      "claim_text": "(Exploratory) Find evidence of the competitive impact or benefits of this mechanism.",
-      "priority": "medium",
-      "tool": "google_search",
-      "verification_query": "next-generation battery chemistry without rare earth minerals"
-      "depends_on": [101]
     }}
   ]
 }}
 
 Here is the document to analyze:
---- DOCUMENT START ---
+---
 {hypothetical_document}
---- DOCUMENT END ---
+---
 
-Now, generate the JSON research plan, including your critique and new exploratory queries to find the missing, non-obvious insights.
+Now, generate the JSON research plan.
 """
 
 def get_verification_and_synthesis_prompt(original_query: str, research_plan: dict, evidence: dict) -> str:
@@ -155,8 +168,7 @@ def get_verification_and_synthesis_prompt(original_query: str, research_plan: di
 
     # 프롬프트 문자열 반환
     return f"""
-You are a **Lead Strategist and Senior Research Analyst** tasked with producing a final, comprehensive **analysis** for a senior executive. The executive needs to understand not just *what* the facts are, but ***why they matter*** **and** ***how they connect***.
-
+You are a **Lead Strategist and Senior Research Analyst** tasked with producing a final, comprehensive **analysis** for a senior executive.
 Your task is to provide a clear, data-driven answer to the user's original query based *only* on the evidence collected.
 **Pay special attention to the "EVIDENCE FOR EXPLORATORY QUERIES,"** as this was designed to find the core, non-obvious insights that the initial hypothesis (Phase 1) may have missed. The "Initial Critique" provides context on what we were looking for.
 
@@ -186,28 +198,52 @@ Your report must adhere to the following rules:
 
 Original User Query: "{original_query}"
 
---- CLAIMS, QUERIES, AND EVIDENCE ---
+---
+CLAIMS, QUERIES, AND EVIDENCE ---
 {evidence_str}
---- END OF CLAIMS, QUERIES, AND EVIDENCE ---
+---
+END OF CLAIMS, QUERIES, AND EVIDENCE ---
 
 Now, please synthesize the final, verified analysis based *only* on the provided evidence, following all the rules above.
 """
 
-def get_query_decomposition_prompt(query: str) -> str:
+def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False) -> str:
     """
     Generates a prompt to decompose a complex query into several simpler sub-queries.
     """
+    available_tools = ["google_search"]
+    if use_arxiv:
+        available_tools.append("arxiv_search")
+    if use_finance:
+        available_tools.append("yahoo_finance")
+    tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
+
     return f"""
 You are an expert at breaking down complex questions into smaller, manageable, and searchable sub-queries.
-Your task is to decompose the following user query into specific questions that can be independently searched on Google to gather comprehensive information.
+Your task is to decompose the following user query into specific questions that can be independently searched to gather comprehensive information.
+For each sub-query, you must specify which tool to use from the available list.
 
-The output MUST be a single JSON object containing a list of strings.
+You have the following tools: {tools_string}.
+- Use `yahoo_finance` for queries about a specific company's financial data (use the ticker symbol).
+- Use `arxiv_search` for scientific or technical topics that might be in academic papers.
+- Use `google_search` for all other general queries.
+
+The output MUST be a single JSON object.
 Example format:
 {{
   "sub_queries": [
-    "What are the main components of a lithium-ion battery?",
-    "Who are the largest manufacturers of lithium-ion batteries globally?",
-    "What is the environmental impact of lithium mining for batteries?"
+    {{
+      "tool": "google_search",
+      "query": "What are the main components of a lithium-ion battery?"
+    }},
+    {{
+      "tool": "yahoo_finance",
+      "query": "TSLA"
+    }},
+    {{
+      "tool": "arxiv_search",
+      "query": "graphene battery energy density"
+    }}
   ]
 }}
 
@@ -216,31 +252,49 @@ User Query: "{query}"
 Now, generate the JSON object with the decomposed sub-queries.
 """
 
-def get_reflection_prompt(query: str, conversation_history: str) -> str:
+def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False) -> str:
     """
     Generates a prompt for the reflection step in a sequential search process.
     """
+    available_tools = ["google_search"]
+    if use_arxiv:
+        available_tools.append("arxiv_search")
+    if use_finance:
+        available_tools.append("yahoo_finance")
+    tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
+
     return f"""
 You are an autonomous research agent. Your goal is to answer the user's original query by sequentially searching for information.
 You will be given the original query and the history of your previous searches and their results.
 Your task is to reflect on the information gathered so far and decide on the next step.
 
+You have the following tools: {tools_string}.
+- Use `yahoo_finance` for queries about a specific company's financial data (use the ticker symbol).
+- Use `arxiv_search` for scientific or technical topics that might be in academic papers.
+- Use `google_search` for all other general queries.
+
 1.  **Reflection:** Briefly explain your thought process. What have you learned? What information is still missing?
 2.  **Next Action:** Decide whether you need to search for more information or if you have enough to answer the query.
-    - If you need more information, provide the next specific Google search query.
-    - If you are finished, set `is_final_answer` to `true`.
+    - If you need more information, provide the next specific search query and the tool to use.
+    - If you are finished, set `is_final_answer` to `true` and `next_query` to `null`.
 
 The output MUST be a single JSON object with the following structure:
 {{
   "reflection": "Your brief thought process here.",
-  "next_query": "Your next Google search query here, or null if finished.",
+  "next_query": {{
+    "tool": "google_search",
+    "query": "Your next search query here."
+  }},
   "is_final_answer": false
 }}
 
 **Example:**
 {{
-  "reflection": "I have found general information about the proposed tariffs. Now I need to understand TSMC's specific exposure to the US market.",
-  "next_query": "TSMC revenue percentage from US market",
+  "reflection": "I have found general information about the proposed tariffs. Now I need to find TSMC's latest financial results to assess the impact.",
+  "next_query": {{
+    "tool": "yahoo_finance",
+    "query": "TSLA"
+  }},
   "is_final_answer": false
 }}
 
@@ -287,10 +341,10 @@ Now, please synthesize the final, verified analysis based only on the evidence f
 """
 
 def get_synthesis_from_search_results_prompt(original_query: str, search_results: dict) -> str:
- """
-Generates a prompt to synthesize a final answer from a collection of search results.
- """
- return f"""
+    """
+    Generates a prompt to synthesize a final answer from a collection of search results.
+    """
+    return f"""
 You are a **Lead Strategist and Senior Research Analyst** tasked with producing a final, comprehensive **analysis** for a senior executive. The executive needs to understand not just *what* the facts are, but ***why they matter*** **and** ***how they connect***. Your task is to provide a clear, data-driven answer to the user's original query based *only* on the provided search results.
 
 Your report must adhere to the following rules:
@@ -313,28 +367,47 @@ Original User Query: "{original_query}"
 
 --- SEARCH RESULTS ---
 {search_results}
---- END OF SEARCH RESULTS ---
+---
+END OF SEARCH RESULTS ---
 
 Now, please synthesize the final, verified analysis based only on the provided search results, following all the rules above.
 """
 
-def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list) -> str:
+def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False) -> str:
     """
     Generates a prompt to identify information gaps in a first-pass answer and create a search query.
     """
+    available_tools = ["google_search"]
+    if use_arxiv:
+        available_tools.append("arxiv_search")
+    if use_finance:
+        available_tools.append("yahoo_finance")
+    tools_string = ", ".join(f'`{tool}`' for tool in available_tools)
     previous_queries_str = "\n".join(f"- {q}" for q in previous_queries)
+
     return f"""
 You are a critical analyst and researcher. You have been given an initial answer to a query and a list of the search queries used to generate it.
 Your task is to identify the most important "information gaps" in the answer.
-Based on those gaps, generate a list of specific, keyword-based Google search queries to find the missing information.
+Based on those gaps, generate a list of specific search queries to find the missing information.
 These new queries must be different from the ones already used.
+
+You have the following tools: {tools_string}.
+- Use `yahoo_finance` for queries about a specific company's financial data (use the ticker symbol).
+- Use `arxiv_search` for scientific or technical topics that might be in academic papers.
+- Use `google_search` for all other general queries.
 
 The output MUST be a single JSON object with the following structure:
 {{
   "information_gap_analysis": "A brief analysis of what key information is missing from the first-pass answer.",
   "search_queries_for_gap": [
-    "The first specific, keyword-based Google search query.",
-    "The second specific, keyword-based Google search query."
+    {{
+      "tool": "google_search",
+      "query": "The first specific, keyword-based search query."
+    }},
+    {{
+      "tool": "yahoo_finance",
+      "query": "GOOG"
+    }}
   ]
 }}
 
@@ -350,7 +423,7 @@ First-Pass Answer:
 {first_pass_answer}
 ---
 
-Now, generate the JSON object identifying the information gap and a list of new search queries.
+Now, generate the JSON object identifying the information gap and a new list of search queries.
 """
 
 def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict) -> str:
@@ -382,11 +455,13 @@ Original User Query: "{original_query}"
 
 --- FIRST-PASS ANSWER ---
 {first_pass_answer}
---- END OF FIRST-PASS ANSWER ---
+---
+END OF FIRST-PASS ANSWER ---
 
 --- EVIDENCE FOR INFORMATION GAP ---
 {gap_search_results}
---- END OF EVIDENCE FOR INFORMATION GAP ---
+---
+END OF EVIDENCE FOR INFORMATION GAP ---
 
 Now, please synthesize the final, comprehensive analysis by integrating the new evidence into the first-pass answer, following all the rules above.
 """
