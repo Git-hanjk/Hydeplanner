@@ -130,8 +130,6 @@ async def get_search_result(env, search_query, search_intent):
             yield 'Browsing web pages...\n\n'
             contents = await fetch_page_content_async(
                 urls_to_fetch, 
-                use_jina=env.use_jina, 
-                jina_api_key=env.jina_api_key, 
                 keep_links=env.keep_links
             )
             for url, content in contents.items():
@@ -274,8 +272,6 @@ async def generate_deep_web_explorer(
                     try:
                         content = await fetch_page_content_async(
                             [url], 
-                            use_jina=env.use_jina, 
-                            jina_api_key=env.jina_api_key, 
                             keep_links=env.keep_links
                         )
                         content = content[url]

@@ -55,88 +55,6 @@ session.headers.update({
 
 
 
-# --- Rate Limiter ---
-
-class RateLimiter:
-    """A simple thread-safe rate limiter."""
-    def __init__(self, rate_limit: int, time_window: int = 60):
-        self.rate_limit = rate_limit
-        self.time_window = time_window
-        self.tokens = rate_limit
-        self.last_update = time.time()
-        self.lock = threading.Lock()
-
-    def acquire(self):
-        """Acquire a token, blocking if necessary."""
-        with self.lock:
-            while self.tokens < 1:
-                self._regenerate_tokens()
-                time.sleep(1)
-            self.tokens -= 1
-
-    def _regenerate_tokens(self):
-        """Regenerate tokens based on elapsed time."""
-        now = time.time()
-        time_passed = now - self.last_update
-        if time_passed > self.time_window:
-            self.tokens = self.rate_limit
-            self.last_update = now
-        else:
-            new_tokens = (time_passed * self.rate_limit) / self.time_window
-            if new_tokens > 1:
-                self.tokens = min(self.rate_limit, self.tokens + int(new_tokens))
-                self.last_update = now
-
-jina_rate_limiter = RateLimiter(rate_limit=120, time_window=60)
-
-# --- Text Processing Utilities ---
-
-def remove_punctuation(text: str) -> str:
-    """Remove punctuation from the text."""
-    return text.translate(str.maketrans("", "", string.punctuation))
-
-def f1_score(true_set: set, pred_set: set) -> float:
-    """Calculate the F1 score between two sets of words."""
-    intersection = len(true_set.intersection(pred_set))
-    if not intersection:
-        return 0.0
-    precision = intersection / float(len(pred_set))
-    recall = intersection / float(len(true_set))
-    return 2 * (precision * recall) / (precision + recall)
-
-def extract_snippet_with_context(full_text: str, snippet: str, context_chars: int = 1500) -> Tuple[bool, str]:
-    """
-    Extract the sentence that best matches the snippet and its context from the full text.
-    """
-    try:
-        full_text = full_text[:100000]
-        snippet_lower = snippet.lower()
-        snippet_words = set(remove_punctuation(snippet_lower).split())
-
-        best_sentence = None
-        best_f1 = 0.2
-
-        sentences = re.split(r'(?<=[.!?]) +', full_text)
-        for sentence in sentences:
-            sentence_lower = sentence.lower()
-            sentence_words = set(remove_punctuation(sentence_lower).split())
-            f1 = f1_score(snippet_words, sentence_words)
-            if f1 > best_f1:
-                best_f1 = f1
-                best_sentence = sentence
-
-        if best_sentence:
-            para_start = full_text.find(best_sentence)
-            para_end = para_start + len(best_sentence)
-            start_index = max(0, para_start - context_chars)
-            end_index = min(len(full_text), para_end + context_chars)
-            context = full_text[start_index:end_index]
-            return True, context
-        else:
-            return False, full_text[:context_chars * 2]
-    except Exception as e:
-        return False, f"Failed to extract snippet context due to {str(e)}"
-
 # --- Content Extraction ---
 
 def extract_pdf_text(url: str) -> str:
@@ -162,28 +80,15 @@ def extract_pdf_text(url: str) -> str:
         print(f"Error extracting text from PDF {url}: {e}")
         return None
 
-def get_content_from_url(url: str, jina_api_key: str = None, pdf_processing_method: str = "Keyword Match (Fast)", query: str = "", save_pdf_embeddings: bool = False) -> str:
+def get_content_from_url(url: str, pdf_processing_method: str = "Keyword Match (Fast)", query: str = "", save_pdf_embeddings: bool = False) -> str:
     """
-    Fetches content from a URL, handling PDFs and using Jina API with rate limiting.
+    Fetches content from a URL, handling PDFs.
     """
     if url.lower().endswith('.pdf'):
         if pdf_processing_method == "Embedding Search (Accurate)":
             return process_pdf_with_embeddings(url, query, save_embeddings=save_pdf_embeddings)
         else: # Fallback to keyword match
             return extract_pdf_text(url)
-
-    if jina_api_key:
-        try:
-            jina_rate_limiter.acquire()
-            jina_headers = {
-                'Authorization': f'Bearer {jina_api_key}',
-                'X-Return-Format': 'markdown',
-            }
-            response = session.get(f'https://r.jina.ai/{url}', headers=jina_headers, timeout=25, verify=False)
-            response.raise_for_status()
-            return response.text
-        except requests.exceptions.RequestException as e:
-            print(f"Jina API failed for {url}: {e}. Falling back to basic scrape.")
 
     try:
         response = session.get(url, timeout=10, verify=False)
@@ -202,17 +107,15 @@ def get_content_from_url(url: str, jina_api_key: str = None, pdf_processing_meth
 
 # --- Main Search Function ---
 
-def process_search_item(item: Dict, jina_api_key: str, use_jina_api: bool, pdf_processing_method: str, query: str, save_pdf_embeddings: bool) -> Dict:
+def process_search_item(item: Dict, pdf_processing_method: str, query: str, save_pdf_embeddings: bool) -> Dict:
     """
     Worker function to process a single search result item.
     """
     link = item.get("link")
     original_snippet = item.get("snippet", "")
     
-    key_to_use = jina_api_key if use_jina_api else None
-    
     # Pass the query for context, especially for PDF processing
-    full_content = get_content_from_url(link, key_to_use, pdf_processing_method, query, save_pdf_embeddings)
+    full_content = get_content_from_url(link, pdf_processing_method, query, save_pdf_embeddings)
     
     snippet = original_snippet
     if full_content:
@@ -226,22 +129,18 @@ def process_search_item(item: Dict, jina_api_key: str, use_jina_api: bool, pdf_p
     
     return {"title": item.get("title"), "link": link, "snippet": snippet}
 
-def google_search(env: Environment, query: str, num_results: int = 3, time_period: str = "Any time", use_jina_api: bool = True, search_pdfs: bool = False, pdf_processing_method: str = "Keyword Match (Fast)", save_pdf_embeddings: bool = False) -> List[Dict]:
+def google_search(env: Environment, query: str, num_results: int = 3, time_period: str = "Any time", search_pdfs: bool = False, pdf_processing_method: str = "Keyword Match (Fast)", save_pdf_embeddings: bool = False) -> List[Dict]:
     """
     Performs a Google search with retries and concurrently fetches content.
     """
     try:
         api_key = env.google_api_key
         cse_id = env.google_cse_id
-        jina_api_key = env.jina_api_key
 
         if not api_key or not cse_id:
             st.error("Google API Key or CSE ID is not configured.")
             return []
         
-        if use_jina_api and not jina_api_key:
-            st.warning("Jina API is enabled, but the key is not configured. Content extraction quality may be lower.")
-
         service = build("customsearch", "v1", developerKey=api_key)
         
         # --- Date Restriction Logic ---
@@ -290,7 +189,7 @@ def google_search(env: Environment, query: str, num_results: int = 3, time_perio
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Pass the main query to the worker for context
-            future_to_item = {executor.submit(process_search_item, item, jina_api_key, use_jina_api, pdf_processing_method, query, save_pdf_embeddings): item for item in items}
+            future_to_item = {executor.submit(process_search_item, item, pdf_processing_method, query, save_pdf_embeddings): item for item in items}
             for future in concurrent.futures.as_completed(future_to_item):
                 try:
                     result = future.result()

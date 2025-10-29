@@ -25,10 +25,8 @@ class Environment:
             aux_api_base_url='',
             google_api_key="",
             google_cse_id="",
-            jina_api_key=None,
             lora_name=None,
             lora_path=None,
-            use_jina=False,
             keep_links=True,
         ):
         
@@ -36,8 +34,6 @@ class Environment:
         self.aux_model_name = aux_model_name
         self.gemini_model_name = gemini_model_name
         self.max_search_limit = max_search_limit
-        self.jina_api_key = jina_api_key
-        self.use_jina = use_jina
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.top_p = top_p
@@ -50,7 +46,6 @@ class Environment:
         self.start_time = time.time()
         self.google_api_key = google_api_key
         self.google_cse_id = google_cse_id
-        self.jina_api_key = jina_api_key
         self.keep_links = keep_links
         self.search_cache = {}
         self.url_cache = {}
@@ -155,8 +150,6 @@ class Environment:
             aux_api_base_url=self.aux_api_base_url,
             lora_name=self.lora_name,
             lora_path=self.lora_path,
-            use_jina=self.use_jina,
-            jina_api_key=self.jina_api_key,
             keep_links=self.keep_links,
         )
         self.history.append(child_env)
