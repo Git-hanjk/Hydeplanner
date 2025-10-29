@@ -129,7 +129,10 @@ async def run_hyde_planner(env: Environment, model: str, query: str, time_period
                 tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
                 log_data["phases"]["4_final_answer"] = final_answer
                 if final_answer:
-                    with st.expander("Phase 4: Final Answer", expanded=True): st.markdown(final_answer)
+                    with st.expander("Phase 4: Final Answer", expanded=True): 
+                        st.markdown(final_answer)
+                        if st.button('Copy report text', key='hyde_planner_copy'):
+                            st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -165,7 +168,10 @@ async def run_direct_search(env: Environment, model: str, query: str, time_perio
             tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
             log_data["phases"]["final_answer"] = final_answer
             if final_answer:
-                with st.expander("Final Answer", expanded=True): st.markdown(final_answer)
+                with st.expander("Final Answer", expanded=True):
+                    st.markdown(final_answer)
+                    if st.button('Copy report text', key='direct_search_copy'):
+                        st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -231,7 +237,10 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
             tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
             log_data["phases"]["final_answer"] = final_answer
             if final_answer:
-                with st.expander("Final Answer", expanded=True): st.markdown(final_answer)
+                with st.expander("Final Answer", expanded=True):
+                    st.markdown(final_answer)
+                    if st.button('Copy report text', key='query_decomposition_copy'):
+                        st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -281,7 +290,10 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
         final_answer, p, c = await call_llm(env, model, prompt)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["final_answer"] = final_answer
-        with st.expander("Final Answer", expanded=True): st.markdown(final_answer)
+        with st.expander("Final Answer", expanded=True):
+            st.markdown(final_answer)
+            if st.button('Copy report text', key='sequential_reflection_copy'):
+                st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -318,7 +330,10 @@ async def run_priority_hyde_planner(env: Environment, model: str, query: str, ti
                 tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
                 log_data["phases"]["4_final_answer"] = final_answer
                 if final_answer:
-                    with st.expander("Phase 4: Final Answer", expanded=True): st.markdown(final_answer)
+                    with st.expander("Phase 4: Final Answer", expanded=True):
+                        st.markdown(final_answer)
+                        if st.button('Copy report text', key='priority_hyde_planner_copy'):
+                            st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -392,7 +407,10 @@ async def run_2step_hyde_planner(env: Environment, model: str, query: str, time_
             tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         
         log_data["phases"]["3_final_answer"] = final_answer
-        with st.expander("Final Answer", expanded=True): st.markdown(final_answer)
+        with st.expander("Final Answer", expanded=True):
+            st.markdown(final_answer)
+            if st.button('Copy report text', key='2step_hyde_planner_copy'):
+                st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -444,7 +462,10 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
         final_answer, p, c = await phase_7_synthesize_with_reflection(env, model, query, first_pass_answer, gap_evidence)
         tracking["prompt_tokens"] += p; tracking["completion_tokens"] += c
         log_data["phases"]["3_final_answer"] = final_answer
-        with st.expander("Final Answer", expanded=True): st.markdown(final_answer)
+        with st.expander("Final Answer", expanded=True):
+            st.markdown(final_answer)
+            if st.button('Copy report text', key='hyde_planner_with_reflection_copy'):
+                st.code(final_answer)
 
         tracking["duration"] = time.time() - start_time
         tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -465,7 +486,7 @@ async def phase_1_generate_hypothetical_document(env: Environment, model: str, q
     return doc, p_tokens, c_tokens
 async def phase_2_reverse_engineer_plan(env: Environment, model: str, doc: str, use_arxiv: bool, use_finance: bool, use_local_search: bool) -> Tuple[dict, int, int]:
     st.info("Phase 2: Reverse-Engineering Research Plan...")
-    prompt = get_plan_reverse_engineering_prompt(doc, use_arxiv=use_arxiv, use_finance=use_finance, use_local_search=use_local_search)
+    prompt = get_plan_reverse_engineering_prompt(doc, use_arxiv=use_arxiv, use_finance=use_local_search)
     response_text, p_tokens, c_tokens = await call_llm(env, model, prompt)
     
     if "Error:" in response_text:
