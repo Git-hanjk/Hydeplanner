@@ -436,7 +436,7 @@ First-Pass Answer:
 Now, generate the JSON object identifying the information gap and a new list of search queries. Please write the JSON object in {language}.
 """
 
-def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict, language: str = "English") -> str:
+def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict) -> str:
     """
     Generates a prompt to synthesize a final answer using an initial answer and new evidence found to fill an information gap.
     """
@@ -473,5 +473,5 @@ END OF FIRST-PASS ANSWER ---
 ---
 END OF EVIDENCE FOR INFORMATION GAP ---
 
-Now, please synthesize the final, comprehensive analysis by integrating the new evidence into the first-pass answer, following all the rules above. Please write the final response in {language}.
+Now, please synthesize the final, comprehensive analysis by integrating the new evidence into the first-pass answer, following all the rules above.
 """

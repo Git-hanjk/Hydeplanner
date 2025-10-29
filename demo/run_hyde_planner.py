@@ -575,16 +575,17 @@ def display_tracking_info(info: dict):
             f"- **Total Tokens:** {info.get('total_tokens', 0)}\n"
             f"- **Estimated Cost:** ${info.get('total_cost', 0):.6f}")
 
-def display_run_results(log_data: Dict[str, Any], font_path: str):
+def display_run_results(log_data: Dict[str, Any], font_path: str, show_log: bool = True):
     methodology = log_data.get("methodology", "Unknown")
     st.markdown(f"<hr style='margin: 2rem 0; border-top: 2px solid #bbb;'>", unsafe_allow_html=True)
     st.header(f"Results for: {methodology}")
 
-    with st.expander("Full Execution Log", expanded=False):
-        for status in log_data.get("status_updates", []):
-            if status.startswith("Warning:"): st.warning(status)
-            elif status.startswith("Error:"): st.error(status)
-            else: st.info(status)
+    if show_log:
+        with st.expander("Full Execution Log", expanded=False):
+            for status in log_data.get("status_updates", []):
+                if status.startswith("Warning:"): st.warning(status)
+                elif status.startswith("Error:"): st.error(status)
+                else: st.info(status)
 
     phases = log_data.get("phases", {})
     key_suffix = methodology.lower().replace(" ", "_")
@@ -597,7 +598,7 @@ def display_run_results(log_data: Dict[str, Any], font_path: str):
         with st.expander("Phase 2: Research Plan", expanded=False):
             st.json(phases["2_research_plan"] or "No plan generated.")
     if "2_raw_plan_output" in phases:
-        with st.expander("Phase 2: Raw Plan Output (JSON Error)", expanded=True):
+        with st.expander("Phase 2: Raw Plan Output (JSON Error)", expanded=False):
             st.text(phases["2_raw_plan_output"] or "No raw output.")
     if "3_collected_evidence" in phases:
         with st.expander("Phase 3: Execution & Verification", expanded=False):
@@ -669,13 +670,15 @@ async def main():
         else:
             st.session_state.run_logs = []
             
+            results_area = st.container()
+
             for methodology in selected_methods:
                 run_log = None
                 runner_args = (env, model_name, query, time_period, search_depth, search_pdfs, "Keyword Match (Fast)", False, use_arxiv, use_finance, use_local_search, selected_language)
                 
-                result_container = st.container()
-                result_container.header(f"Running: {methodology}")
-                status_placeholder = result_container.empty()
+                with results_area:
+                    run_output_container = st.container()
+                    run_output_container.header(f"Running: {methodology}")
 
                 runner = None
                 if methodology == "HyDE-Planner":
@@ -690,17 +693,14 @@ async def main():
                 if runner:
                     async for status in runner:
                         if isinstance(status, str):
-                            with status_placeholder.container():
-                                st.info(status)
+                            run_output_container.info(status)
                         else:
                             run_log = status
                 
-                status_placeholder.empty()
-
                 if run_log:
                     st.session_state.run_logs.append(run_log)
-                    with result_container:
-                        display_run_results(run_log, st.session_state.font_path)
+                    with run_output_container:
+                        display_run_results(run_log, st.session_state.font_path, show_log=False)
 
                     if log_to_file:
                         log_dir = os.path.join(os.path.dirname(__file__), "logs")
