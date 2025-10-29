@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import datetime
 from dotenv import load_dotenv
-from typing import Tuple, Dict, Any, List
+from typing import Tuple, Dict, Any, List, AsyncGenerator
 import requests
 
 # Add project root to sys.path
@@ -280,55 +280,80 @@ async def phase_4_synthesize_final_answer(env: Environment, model: str, original
 
 # --- Methodology Runners (Refactored to return log dict) ---
 
-async def run_hyde_planner(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str) -> Dict[str, Any]:
+async def run_hyde_planner(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str) -> AsyncGenerator[Any, None]:
     log_data = {"methodology": "HyDE-Planner", "phases": {}, "status_updates": [], "performance_summary": {}}
     start_time = time.time()
     tracking = {"prompt_tokens": 0, "completion_tokens": 0}
 
-    log_data["status_updates"].append("Phase 1: Generating Hypothetical Document...")
+    status = "Phase 1: Generating Hypothetical Document..."
+    log_data["status_updates"].append(status)
+    yield status
     p1_res = await phase_1_generate_hypothetical_document(env, model, query, language)
     tracking["prompt_tokens"] += p1_res["p_tokens"]; tracking["completion_tokens"] += p1_res["c_tokens"]
     if p1_res.get("error"):
-        log_data["status_updates"].append(f"Error in Phase 1: {p1_res['error']}")
-        return log_data
+        error_msg = f"Error in Phase 1: {p1_res['error']}"
+        log_data["status_updates"].append(error_msg)
+        yield error_msg
+        yield log_data
+        return
     log_data["phases"]["1_hypothetical_document"] = p1_res["doc"]
 
-    log_data["status_updates"].append("Phase 2: Reverse-Engineering Research Plan...")
+    status = "Phase 2: Reverse-Engineering Research Plan..."
+    log_data["status_updates"].append(status)
+    yield status
     p2_res = await phase_2_reverse_engineer_plan(env, model, p1_res["doc"], use_arxiv, use_finance, use_local_search, language)
     tracking["prompt_tokens"] += p2_res["p_tokens"]; tracking["completion_tokens"] += p2_res["c_tokens"]
     if p2_res.get("error"):
-        log_data["status_updates"].append(f"Error in Phase 2: {p2_res['error']}")
+        error_msg = f"Error in Phase 2: {p2_res['error']}"
+        log_data["status_updates"].append(error_msg)
         log_data["phases"]["2_raw_plan_output"] = p2_res.get("raw_text")
-        return log_data
+        yield error_msg
+        yield log_data
+        return
     log_data["phases"]["2_research_plan"] = p2_res["plan"]
 
-    log_data["status_updates"].append("Phase 3: Executing Plan and Verifying Claims...")
+    status = "Phase 3: Executing Plan and Verifying Claims..."
+    log_data["status_updates"].append(status)
+    yield status
     p3_res = phase_3_execute_plan_and_verify(env, p2_res["plan"], time_period, search_depth, search_pdfs, pdf_processing_method, save_pdf_embeddings, use_arxiv, use_finance, use_local_search)
     log_data["status_updates"].extend(p3_res["logs"])
+    for log_entry in p3_res["logs"]:
+        yield log_entry
     log_data["phases"]["3_collected_evidence"] = p3_res["evidence"]
 
-    log_data["status_updates"].append("Phase 4: Synthesizing Final Answer...")
+    status = "Phase 4: Synthesizing Final Answer..."
+    log_data["status_updates"].append(status)
+    yield status
     p4_res = await phase_4_synthesize_final_answer(env, model, query, p2_res["plan"], p3_res["evidence"], language)
     tracking["prompt_tokens"] += p4_res["p_tokens"]; tracking["completion_tokens"] += p4_res["c_tokens"]
     if p4_res.get("error"):
-        log_data["status_updates"].append(f"Error in Phase 4: {p4_res['error']}")
-        return log_data
+        error_msg = f"Error in Phase 4: {p4_res['error']}"
+        log_data["status_updates"].append(error_msg)
+        yield error_msg
+        yield log_data
+        return
     log_data["phases"]["final_answer"] = p4_res["answer"]
 
     tracking["duration"] = time.time() - start_time
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
     tracking["total_cost"] = calculate_cost(model, tracking["prompt_tokens"], tracking["completion_tokens"])
     log_data["performance_summary"] = tracking
-    return log_data
+    yield log_data
 
-async def run_hyde_planner_with_reflection(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str) -> Dict[str, Any]:
+async def run_hyde_planner_with_reflection(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str) -> AsyncGenerator[Any, None]:
     log_data = {"methodology": "HyDE-Planner with 2nd Reflection", "phases": {}, "status_updates": [], "performance_summary": {}}
     start_time = time.time()
     tracking = {"prompt_tokens": 0, "completion_tokens": 0}
 
     # --- Run original HyDE Planner ---
-    initial_hyde_log = await run_hyde_planner(env, model, query, time_period, search_depth, search_pdfs, pdf_processing_method, save_pdf_embeddings, use_arxiv, use_finance, use_local_search, language)
-    
+    initial_hyde_log = None
+    initial_hyde_runner = run_hyde_planner(env, model, query, time_period, search_depth, search_pdfs, pdf_processing_method, save_pdf_embeddings, use_arxiv, use_finance, use_local_search, language)
+    async for status in initial_hyde_runner:
+        if isinstance(status, str):
+            yield status
+        else:
+            initial_hyde_log = status
+
     # --- Merge initial log data ---
     log_data["status_updates"].extend(initial_hyde_log.get("status_updates", []))
     log_data["phases"] = initial_hyde_log.get("phases", {})
@@ -338,11 +363,16 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
 
     first_pass_answer = log_data.get("phases", {}).get("final_answer")
     if not first_pass_answer or "Error:" in first_pass_answer:
-        log_data["status_updates"].append("Skipping reflection due to error or no initial answer.")
-        return log_data
+        error_msg = "Skipping reflection due to error or no initial answer."
+        log_data["status_updates"].append(error_msg)
+        yield error_msg
+        yield log_data
+        return
 
     # --- Phase 5: Identify Information Gaps ---
-    log_data["status_updates"].append("Phase 5: Reflecting on the first-pass answer to find information gaps...")
+    status = "Phase 5: Reflecting on the first-pass answer to find information gaps..."
+    log_data["status_updates"].append(status)
+    yield status
     previous_queries = [c.get("verification_query", "") for c in log_data.get("phases", {}).get("2_research_plan", {}).get("claims_to_verify", [])]
     gap_prompt = get_information_gap_prompt(query, first_pass_answer, previous_queries, use_arxiv, use_finance, use_local_search, language)
     gap_response, p_tokens, c_tokens = await call_llm(env, model, gap_prompt)
@@ -352,18 +382,25 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
         gap_plan = json_repair.loads(gap_response)
         log_data["phases"]["5_gap_analysis"] = gap_plan
     except json.JSONDecodeError as e:
-        log_data["status_updates"].append(f"Error in Phase 5: Failed to decode JSON from gap analysis: {e}")
+        error_msg = f"Error in Phase 5: Failed to decode JSON from gap analysis: {e}"
+        log_data["status_updates"].append(error_msg)
         log_data["phases"]["5_raw_gap_output"] = gap_response
-        return log_data
+        yield error_msg
+        yield log_data
+        return
 
     # --- Phase 6: Execute Gap-Filling Search ---
-    log_data["status_updates"].append("Phase 6: Executing gap-filling search...")
+    status = "Phase 6: Executing gap-filling search..."
+    log_data["status_updates"].append(status)
+    yield status
     gap_evidence, gap_logs = {}, []
     for claim in gap_plan.get("search_queries_for_gap", []):
         claim_id, gap_query, tool = f"gap_{len(gap_evidence)+1}", claim.get("query"), claim.get("tool", "google_search")
         if not gap_query: continue
         
-        gap_logs.append(f"Executing Gap Query: `{gap_query}` with tool `{tool}`")
+        log_msg = f"Executing Gap Query: `{gap_query}` with tool `{tool}`"
+        gap_logs.append(log_msg)
+        yield log_msg
         search_results = None
         try:
             if tool == "google_search": search_results = google_search(env, gap_query, time_period=time_period, search_pdfs=search_pdfs, pdf_processing_method=pdf_processing_method, save_pdf_embeddings=save_pdf_embeddings)
@@ -377,7 +414,9 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
     log_data["phases"]["6_gap_evidence"] = gap_evidence
 
     # --- Phase 7: Final Synthesis with Reflection ---
-    log_data["status_updates"].append("Phase 7: Synthesizing final answer with new evidence...")
+    status = "Phase 7: Synthesizing final answer with new evidence..."
+    log_data["status_updates"].append(status)
+    yield status
     final_synth_prompt = get_synthesis_with_reflection_prompt(query, first_pass_answer, gap_evidence, language)
     final_answer, p_tokens, c_tokens = await call_llm(env, model, final_synth_prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
@@ -387,15 +426,17 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
     tracking["total_cost"] = calculate_cost(model, tracking["prompt_tokens"], tracking["completion_tokens"])
     log_data["performance_summary"] = tracking
-    return log_data
+    yield log_data
 
-async def run_query_decomposition_search(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str) -> Dict[str, Any]:
+async def run_query_decomposition_search(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str) -> AsyncGenerator[Any, None]:
     log_data = {"methodology": "Query Decomposition Search", "phases": {}, "status_updates": [], "performance_summary": {}}
     start_time = time.time()
     tracking = {"prompt_tokens": 0, "completion_tokens": 0}
 
     # Phase 1: Decompose Query
-    log_data["status_updates"].append("Phase 1: Decomposing query...")
+    status = "Phase 1: Decomposing query..."
+    log_data["status_updates"].append(status)
+    yield status
     prompt = get_query_decomposition_prompt(query, use_arxiv, use_finance, use_local_search, language)
     response_text, p_tokens, c_tokens = await call_llm(env, model, prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
@@ -404,19 +445,26 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
         decomposed_plan = json_repair.loads(response_text)
         log_data["phases"]["1_decomposed_plan"] = decomposed_plan
     except json.JSONDecodeError as e:
-        log_data["status_updates"].append(f"Error in Phase 1: Failed to decode JSON from decomposition: {e}")
+        error_msg = f"Error in Phase 1: Failed to decode JSON from decomposition: {e}"
+        log_data["status_updates"].append(error_msg)
         log_data["phases"]["1_raw_decomposition_output"] = response_text
-        return log_data
+        yield error_msg
+        yield log_data
+        return
 
     # Phase 2: Execute All Sub-Queries
-    log_data["status_updates"].append("Phase 2: Executing sub-queries...")
+    status = "Phase 2: Executing sub-queries..."
+    log_data["status_updates"].append(status)
+    yield status
     evidence, logs = {}, []
     local_search_tool = LocalSearch() if use_local_search else None
     for i, sub_query_data in enumerate(decomposed_plan.get("sub_queries", [])):
         sub_query, tool = sub_query_data.get("query"), sub_query_data.get("tool", "google_search")
         if not sub_query: continue
         
-        logs.append(f"Executing Sub-Query #{i+1}: `{sub_query}` with tool `{tool}`")
+        log_msg = f"Executing Sub-Query #{i+1}: `{sub_query}` with tool `{tool}`"
+        logs.append(log_msg)
+        yield log_msg
         search_results = None
         try:
             if tool == "google_search": search_results = google_search(env, sub_query, time_period=time_period, search_pdfs=search_pdfs, pdf_processing_method=pdf_processing_method, save_pdf_embeddings=save_pdf_embeddings)
@@ -430,7 +478,9 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
     log_data["phases"]["2_collected_evidence"] = evidence
 
     # Phase 3: Synthesize Final Answer
-    log_data["status_updates"].append("Phase 3: Synthesizing final answer from all results...")
+    status = "Phase 3: Synthesizing final answer from all results..."
+    log_data["status_updates"].append(status)
+    yield status
     prompt = get_synthesis_from_search_results_prompt(query, evidence, language)
     answer, p_tokens, c_tokens = await call_llm(env, model, prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
@@ -440,9 +490,9 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
     tracking["total_cost"] = calculate_cost(model, tracking["prompt_tokens"], tracking["completion_tokens"])
     log_data["performance_summary"] = tracking
-    return log_data
+    yield log_data
 
-async def run_sequential_reflection_search(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str, max_turns: int = 5) -> Dict[str, Any]:
+async def run_sequential_reflection_search(env: Environment, model: str, query: str, time_period: str, search_depth: str, search_pdfs: bool, pdf_processing_method: str, save_pdf_embeddings: bool, use_arxiv: bool, use_finance: bool, use_local_search: bool, language: str, max_turns: int = 5) -> AsyncGenerator[Any, None]:
     log_data = {"methodology": "Sequential-Reflection Search", "phases": {}, "status_updates": [], "performance_summary": {}}
     start_time = time.time()
     tracking = {"prompt_tokens": 0, "completion_tokens": 0}
@@ -450,7 +500,9 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
     local_search_tool = LocalSearch() if use_local_search else None
 
     for turn in range(1, max_turns + 1):
-        log_data["status_updates"].append(f"Turn {turn}: Reflecting on progress...")
+        status = f"Turn {turn}: Reflecting on progress..."
+        log_data["status_updates"].append(status)
+        yield status
         
         # Phase 1: Reflection and Planning
         prompt = get_reflection_prompt(query, conversation_history, use_arxiv, use_finance, use_local_search, language)
@@ -462,22 +514,30 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
             log_data["phases"][f"turn_{turn}_reflection"] = reflection_plan
             conversation_history += f"\nTurn {turn} Reflection: {reflection_plan.get('reflection', '')}"
         except json.JSONDecodeError as e:
-            log_data["status_updates"].append(f"Error in Turn {turn}: Failed to decode reflection JSON: {e}")
+            error_msg = f"Error in Turn {turn}: Failed to decode reflection JSON: {e}"
+            log_data["status_updates"].append(error_msg)
             log_data["phases"][f"turn_{turn}_raw_reflection_output"] = response_text
+            yield error_msg
             break
 
         if reflection_plan.get("is_final_answer"):
-            log_data["status_updates"].append("Agent decided to synthesize the final answer.")
+            final_answer_msg = "Agent decided to synthesize the final answer."
+            log_data["status_updates"].append(final_answer_msg)
+            yield final_answer_msg
             break
 
         # Phase 2: Execution
         next_query_data = reflection_plan.get("next_query")
         if not next_query_data or not next_query_data.get("query"):
-            log_data["status_updates"].append("Agent did not provide a next query. Ending run.")
+            no_query_msg = "Agent did not provide a next query. Ending run."
+            log_data["status_updates"].append(no_query_msg)
+            yield no_query_msg
             break
         
         search_query, tool = next_query_data["query"], next_query_data.get("tool", "google_search")
-        log_data["status_updates"].append(f"Turn {turn}: Executing query `{search_query}` with tool `{tool}`")
+        exec_msg = f"Turn {turn}: Executing query `{search_query}` with tool `{tool}`"
+        log_data["status_updates"].append(exec_msg)
+        yield exec_msg
         
         search_results = None
         try:
@@ -492,7 +552,9 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
         conversation_history += f"\nExecuted Query: '{search_query}'\nResults:\n{json.dumps(search_results, indent=2)}"
 
     # Final Synthesis
-    log_data["status_updates"].append("Final Phase: Synthesizing answer from conversation history...")
+    final_synth_msg = "Final Phase: Synthesizing answer from conversation history..."
+    log_data["status_updates"].append(final_synth_msg)
+    yield final_synth_msg
     prompt = get_synthesis_from_conversation_prompt(query, conversation_history, language)
     answer, p_tokens, c_tokens = await call_llm(env, model, prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
@@ -502,7 +564,7 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
     tracking["total_cost"] = calculate_cost(model, tracking["prompt_tokens"], tracking["completion_tokens"])
     log_data["performance_summary"] = tracking
-    return log_data
+    yield log_data
 
 # ... (Other runner functions would be refactored similarly) ...
 
@@ -518,10 +580,11 @@ def display_run_results(log_data: Dict[str, Any], font_path: str):
     st.markdown(f"<hr style='margin: 2rem 0; border-top: 2px solid #bbb;'>", unsafe_allow_html=True)
     st.header(f"Results for: {methodology}")
 
-    for status in log_data.get("status_updates", []):
-        if status.startswith("Warning:"): st.warning(status)
-        elif status.startswith("Error:"): st.error(status)
-        else: st.info(status)
+    with st.expander("Full Execution Log", expanded=False):
+        for status in log_data.get("status_updates", []):
+            if status.startswith("Warning:"): st.warning(status)
+            elif status.startswith("Error:"): st.error(status)
+            else: st.info(status)
 
     phases = log_data.get("phases", {})
     key_suffix = methodology.lower().replace(" ", "_")
@@ -556,7 +619,7 @@ def display_run_results(log_data: Dict[str, Any], font_path: str):
 
 # --- Main App ---
 
-def main():
+async def main():
     st.set_page_config(page_title="HyDE Planner Demo", layout="wide")
     st.title("HyDE Planner Demo")
 
@@ -610,18 +673,35 @@ def main():
                 run_log = None
                 runner_args = (env, model_name, query, time_period, search_depth, search_pdfs, "Keyword Match (Fast)", False, use_arxiv, use_finance, use_local_search, selected_language)
                 
-                with st.spinner(f"Running {methodology}..."):
-                    if methodology == "HyDE-Planner":
-                        run_log = asyncio.run(run_hyde_planner(*runner_args))
-                    elif methodology == "HyDE-Planner with 2nd Reflection":
-                        run_log = asyncio.run(run_hyde_planner_with_reflection(*runner_args))
-                    elif methodology == "Query Decomposition Search":
-                        run_log = asyncio.run(run_query_decomposition_search(*runner_args[:-5], selected_language)) # Adjust args
-                    elif methodology == "Sequential-Reflection Search":
-                        run_log = asyncio.run(run_sequential_reflection_search(*runner_args))
+                result_container = st.container()
+                result_container.header(f"Running: {methodology}")
+                status_placeholder = result_container.empty()
+
+                runner = None
+                if methodology == "HyDE-Planner":
+                    runner = run_hyde_planner(*runner_args)
+                elif methodology == "HyDE-Planner with 2nd Reflection":
+                    runner = run_hyde_planner_with_reflection(*runner_args)
+                elif methodology == "Query Decomposition Search":
+                    runner = run_query_decomposition_search(*runner_args)
+                elif methodology == "Sequential-Reflection Search":
+                    runner = run_sequential_reflection_search(*runner_args)
+
+                if runner:
+                    async for status in runner:
+                        if isinstance(status, str):
+                            with status_placeholder.container():
+                                st.info(status)
+                        else:
+                            run_log = status
+                
+                status_placeholder.empty()
 
                 if run_log:
                     st.session_state.run_logs.append(run_log)
+                    with result_container:
+                        display_run_results(run_log, st.session_state.font_path)
+
                     if log_to_file:
                         log_dir = os.path.join(os.path.dirname(__file__), "logs")
                         os.makedirs(log_dir, exist_ok=True)
@@ -630,10 +710,10 @@ def main():
                             json.dump(run_log, f, indent=2)
                         st.sidebar.success(f"Log saved to {filename}")
 
-    # --- Display Area (runs on every script rerun) ---
-    if st.session_state.run_logs:
+    # --- Display Area for subsequent reruns (e.g., after widget interaction) ---
+    elif st.session_state.run_logs:
         for log in st.session_state.run_logs:
             display_run_results(log, st.session_state.font_path)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
