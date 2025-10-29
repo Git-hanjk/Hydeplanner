@@ -34,45 +34,84 @@ import markdown
 import io
 
 # --- Font Management ---
-def download_font(font_filename="DejaVuSans.ttf"):
-    """Checks for a font file in the static directory, downloads it if not present, and returns the path."""
+def download_font(language: str = "English") -> str:
+    """
+    Checks for a font file in the static directory based on the selected language,
+    downloads it if not present (for non-local fonts), and returns the path.
+    """
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     os.makedirs(static_dir, exist_ok=True)
+
+    font_map = {
+        "Korean": {
+            "filename": "NotoSansKR-VariableFont_wght.ttf",
+            "local": True
+        },
+        "Japanese": {
+            "filename": "NotoSansJP-VariableFont_wght.ttf",
+            "local": True
+        },
+        "Chinese": {
+            "filename": "NotoSansSC-VariableFont_wght.ttf",
+            "local": True
+        },
+        "English": {
+            "filename": "DejaVuSans.ttf",
+            "url": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+            "local": False
+        },
+        "Spanish": {
+            "filename": "DejaVuSans.ttf",
+            "url": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+            "local": False
+        },
+        "French": {
+            "filename": "DejaVuSans.ttf",
+            "url": "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/ttf/DejaVuSans.ttf",
+            "local": False
+        }
+    }
+
+    font_info = font_map.get(language, font_map["English"])
+    font_filename = font_info["filename"]
     font_path = os.path.join(static_dir, font_filename)
 
+    if font_info.get("local", False):
+        if not os.path.exists(font_path):
+            st.error(f"Local font file not found: {font_path}. Please make sure it exists.")
+            return None
+        return font_path
+
+    # Download logic for non-local fonts
     if not os.path.exists(font_path):
-        st.info(f"Downloading required font: {font_filename}...")
+        st.info(f"Downloading required font: {font_filename} for {language}...")
         try:
-            # URL for the raw font file on GitHub
-            font_url = f"https://github.com/dejavu-fonts/dejavu-fonts/raw/main/ttf/{font_filename}"
+            font_url = font_info["url"]
             response = requests.get(font_url, stream=True)
             response.raise_for_status()
             with open(font_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-            st.success("Font downloaded successfully.")
+            st.success(f"Font for {language} downloaded successfully.")
         except requests.exceptions.RequestException as e:
             st.error(f"Error downloading font: {e}")
-            return None # Return None if download fails
+            return None
     return font_path
-
-FONT_PATH = download_font()
 
 # --- UI Helper Functions ---
 
-def save_report_as_image(report_text, key):
+def save_report_as_image(report_text, key, font_path):
     try:
         width, height, margin, font_size, line_spacing = 800, 1000, 20, 14, 5
         text = report_text.replace('*', '')
         image = Image.new('RGB', (width, height), 'white')
         draw = ImageDraw.Draw(image)
         try:
-            # Use the globally defined font path
-            font = ImageFont.truetype(FONT_PATH, font_size) if FONT_PATH else ImageFont.load_default()
-            if not FONT_PATH:
+            font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
+            if not font_path:
                  st.warning("Using default font for image. Non-ASCII characters may not render correctly.")
         except IOError:
-            st.warning("Failed to load DejaVuSans.ttf. Non-ASCII characters may not render correctly in the image.")
+            st.warning(f"Failed to load font at {font_path}. Non-ASCII characters may not render correctly in the image.")
             font = ImageFont.load_default()
         
         y_text, lines = margin, []
@@ -113,19 +152,19 @@ def save_report_as_document(report_text, key):
     except Exception as e:
         st.error(f"Failed to create download link for document: {e}")
 
-def save_report_as_pdf(report_text, key):
+def save_report_as_pdf(report_text, key, font_path):
     try:
         from fpdf import FPDF
         pdf = FPDF()
         pdf.add_page()
         try:
-            if FONT_PATH:
-                pdf.add_font('DejaVu', '', FONT_PATH, uni=True)
-                pdf.set_font('DejaVu', '', 12)
+            if font_path:
+                pdf.add_font('NotoSans', '', font_path, uni=True)
+                pdf.set_font('NotoSans', '', 12)
             else:
                 raise RuntimeError("Font file not available.")
         except RuntimeError:
-            st.warning("DejaVuSans.ttf not found or failed to load. PDF content may not render non-ASCII characters correctly.")
+            st.warning("Selected font not found or failed to load. PDF content may not render non-ASCII characters correctly.")
             pdf.set_font('Arial', '', 12)
         pdf.write_html(markdown.markdown(report_text))
         pdf_output = pdf.output(dest='S').encode('utf-8')
@@ -474,7 +513,7 @@ def display_tracking_info(info: dict):
             f"- **Total Tokens:** {info.get('total_tokens', 0)}\n"
             f"- **Estimated Cost:** ${info.get('total_cost', 0):.6f}")
 
-def display_run_results(log_data: Dict[str, Any]):
+def display_run_results(log_data: Dict[str, Any], font_path: str):
     methodology = log_data.get("methodology", "Unknown")
     st.markdown(f"<hr style='margin: 2rem 0; border-top: 2px solid #bbb;'>", unsafe_allow_html=True)
     st.header(f"Results for: {methodology}")
@@ -507,9 +546,9 @@ def display_run_results(log_data: Dict[str, Any]):
             st.markdown(final_answer)
             if st.button('Copy report text', key=f'{key_suffix}_copy'):
                 st.code(final_answer)
-            save_report_as_image(final_answer, f"{key_suffix}_report")
+            save_report_as_image(final_answer, f"{key_suffix}_report", font_path)
             save_report_as_document(final_answer, f"{key_suffix}_report")
-            save_report_as_pdf(final_answer, f"{key_suffix}_report")
+            save_report_as_pdf(final_answer, f"{key_suffix}_report", font_path)
 
     if log_data.get("performance_summary"):
         st.success(f"{methodology} finished.")
@@ -523,6 +562,8 @@ def main():
 
     if "run_logs" not in st.session_state:
         st.session_state.run_logs = []
+    if "font_path" not in st.session_state:
+        st.session_state.font_path = None
 
     env = initialize_environment()
 
@@ -531,6 +572,9 @@ def main():
     language_options = {"English": "English", "Korean": "Korean", "Chinese": "Chinese", "Japanese": "Japanese", "Spanish": "Spanish", "French": "French"}
     selected_language = language_options[st.sidebar.selectbox("Select Language", options=list(language_options.keys()))]
     
+    # Download font based on language and store it in session state
+    st.session_state.font_path = download_font(selected_language)
+
     model_name = st.sidebar.selectbox("Select LLM", options=["gemini-2.5-pro", "gemini-2.5-flash"], index=0)
     
     time_period_option = st.sidebar.selectbox("Search Time Period", options=["Any time", "Past year", "Past month", "Past week", "Custom range"], index=0)
@@ -589,7 +633,7 @@ def main():
     # --- Display Area (runs on every script rerun) ---
     if st.session_state.run_logs:
         for log in st.session_state.run_logs:
-            display_run_results(log)
+            display_run_results(log, st.session_state.font_path)
 
 if __name__ == "__main__":
     main()

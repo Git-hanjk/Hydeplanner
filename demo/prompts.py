@@ -1,6 +1,6 @@
 # prompts.py for HyDE-Planner
 
-def get_hyde_generation_prompt(query: str, language: str = "English") -> str:
+def get_hyde_generation_prompt(query: str) -> str:
     """
     [Improved Prompt] Generates a prompt for Phase 1: Hypothetical Document Generation (HyDE).
     
@@ -15,7 +15,6 @@ def get_hyde_generation_prompt(query: str, language: str = "English") -> str:
     return f"""
 You are a **panel of senior strategy analysts** from McKinsey, BCG, and Bloomberg Intelligence.
 Your task is to brainstorm **several key hypotheses** or **strategic mechanisms** from different perspectives to answer the following complex query. You must then write a detailed, structured document based on these hypotheses.
-**The entire response must be written in {language}.**
 
 This document will be used by an AI planner to create a fact-checking and research plan. Therefore, it is crucial that each hypothesis is rich with specific, verifiable claims, key concepts, and related entities, even if they are speculative.
 
@@ -42,7 +41,7 @@ Now, please generate the detailed hypothetical document based on the following i
 (The most unexpected or counter-intuitive hypothesis that, if true, would have a significant impact. Provide specific rationale and claims for it...)
 """
 
-def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
+def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     [개선된 프롬프트] 2단계: 계획 역설계 (PRE)를 위한 프롬프트를 생성합니다.
     
@@ -82,7 +81,6 @@ Your task is twofold:
 
 You have the following tools: {tools_string}.
 Your plan must be a single JSON object.
-**IMPORTANT: All text values within the JSON object (like 'main_topic', 'critique_of_hypothesis', 'claim_text') must be written in {language}.**
 Only use the tools listed above. For financial queries, use the company's stock ticker symbol (e.g., "TSLA", "AAPL") as the query for `yahoo_finance`. For academic papers, use `arxiv_search`.
 
 **JSON Structure:**
@@ -126,7 +124,7 @@ Here is the document to analyze:
 Now, generate the JSON research plan.
 """
 
-def get_verification_and_synthesis_prompt(original_query: str, research_plan: dict, evidence: dict, language: str = "English") -> str:
+def get_verification_and_synthesis_prompt(original_query: str, research_plan: dict, evidence: dict) -> str:
     """
     [개선된 프롬프트] 3단계: 검증 및 종합을 위한 프롬프트를 생성합니다.
     
@@ -174,7 +172,6 @@ def get_verification_and_synthesis_prompt(original_query: str, research_plan: di
     return f"""
 You are a **Lead Strategist and Senior Research Analyst** tasked with producing a final, comprehensive **analysis** for a senior executive.
 Your task is to provide a clear, data-driven answer to the user's original query based *only* on the evidence collected.
-**IMPORTANT: The entire final report must be written in {language}.**
 **Pay special attention to the "EVIDENCE FOR EXPLORATORY QUERIES,"** as this was designed to find the core, non-obvious insights that the initial hypothesis (Phase 1) may have missed. The "Initial Critique" provides context on what we were looking for.
 
 Your report must adhere to the following rules:
@@ -212,7 +209,7 @@ END OF CLAIMS, QUERIES, AND EVIDENCE ---
 Now, please synthesize the final, verified analysis based *only* on the provided evidence, following all the rules above.
 """
 
-def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
+def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     Generates a prompt to decompose a complex query into several simpler sub-queries.
     """
@@ -236,7 +233,6 @@ You have the following tools: {tools_string}.
 - Use `google_search` for all other general queries.
 
 The output MUST be a single JSON object.
-**IMPORTANT: The 'query' values in the JSON output must be written in {language}.**
 Example format:
 {{
   "sub_queries": [
@@ -260,7 +256,7 @@ User Query: "{query}"
 Now, generate the JSON object with the decomposed sub-queries.
 """
 
-def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
+def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     Generates a prompt for the reflection step in a sequential search process.
     """
@@ -289,7 +285,6 @@ You have the following tools: {tools_string}.
     - If you are finished, set `is_final_answer` to `true` and `next_query` to `null`.
 
 The output MUST be a single JSON object with the following structure:
-**IMPORTANT: The 'reflection' and 'query' values in the JSON must be written in {language}.**
 {{
   "reflection": "Your brief thought process here.",
   "next_query": {{
@@ -319,13 +314,12 @@ Conversation History:
 Now, provide your reflection and the next action in the specified JSON format.
 """
 
-def get_synthesis_from_conversation_prompt(query: str, conversation_history: str, language: str = "English") -> str:
+def get_synthesis_from_conversation_prompt(query: str, conversation_history: str) -> str:
     """
     Generates a prompt to synthesize a final answer from a conversation history.
     """
     return f"""
 You are a **Lead Strategist and Senior Research Analyst** tasked with producing a final, comprehensive **analysis** for a senior executive. The executive needs to understand not just *what* the facts are, but ***why they matter*** **and** ***how they connect***. Your task is to provide a clear, data-driven answer to the user's original query based *only* on the evidence found within the provided conversation history.
-**IMPORTANT: The entire final report must be written in {language}.**
 
 Your report must adhere to the following rules:
 1.  **Structure:** The report must include:
@@ -352,13 +346,12 @@ Conversation History:
 Now, please synthesize the final, verified analysis based only on the evidence found within the provided conversation history, following all the rules above.
 """
 
-def get_synthesis_from_search_results_prompt(original_query: str, search_results: dict, language: str = "English") -> str:
+def get_synthesis_from_search_results_prompt(original_query: str, search_results: dict) -> str:
     """
     Generates a prompt to synthesize a final answer from a collection of search results.
     """
     return f"""
 You are a **Lead Strategist and Senior Research Analyst** tasked with producing a final, comprehensive **analysis** for a senior executive. The executive needs to understand not just *what* the facts are, but ***why they matter*** **and** ***how they connect***. Your task is to provide a clear, data-driven answer to the user's original query based *only* on the provided search results.
-**IMPORTANT: The entire final report must be written in {language}.**
 
 Your report must adhere to the following rules:
 1.  **Structure:** The report must include:
@@ -386,7 +379,7 @@ END OF SEARCH RESULTS ---
 Now, please synthesize the final, verified analysis based only on the provided search results, following all the rules above.
 """
 
-def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
+def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
     """
     Generates a prompt to identify information gaps in a first-pass answer and create a search query.
     """
@@ -412,7 +405,6 @@ You have the following tools: {tools_string}.
 - Use `google_search` for all other general queries.
 
 The output MUST be a single JSON object with the following structure:
-**IMPORTANT: All text values in the JSON ('information_gap_analysis', 'query') must be written in {language}.**
 {{
   "information_gap_analysis": "A brief analysis of what key information is missing from the first-pass answer.",
   "search_queries_for_gap": [
@@ -442,7 +434,7 @@ First-Pass Answer:
 Now, generate the JSON object identifying the information gap and a new list of search queries.
 """
 
-def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict, language: str = "English") -> str:
+def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict) -> str:
     """
     Generates a prompt to synthesize a final answer using an initial answer and new evidence found to fill an information gap.
     """
@@ -450,7 +442,6 @@ def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer:
 You are a **Lead Strategist and Senior Research Analyst**. You have already produced an initial report.
 After reviewing it, you identified an information gap and conducted further research.
 Your task is to create a new, final, and more comprehensive report by integrating the new evidence into your original analysis.
-**IMPORTANT: The entire final report must be written in {language}.**
 
 Your final report must adhere to the following rules:
 1.  **Structure:** The report must include:

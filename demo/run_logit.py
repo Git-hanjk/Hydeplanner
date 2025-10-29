@@ -3,13 +3,7 @@ import asyncio
 import re
 import json
 from typing import Tuple, List, Dict
-from bing_search import (
-    extract_relevant_info, 
-    fetch_page_content_async,
-    extract_snippet_with_context,
-    bing_web_search_async
-)
-from utils import extract_answer_fn
+from utils import extract_answer_fn, extract_snippet_with_context, extract_relevant_info, fetch_page_content_async, bing_web_search_async
 from openai import AsyncOpenAI
 from prompts import get_multiqa_search_o1_instruction, get_task_instruction_openqa, get_search_intent_instruction, get_deep_web_explorer_instruction, get_click_intent_instruction, get_web_page_reader_instruction
 from settings import Environment

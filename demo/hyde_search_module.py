@@ -21,6 +21,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 from pdf_processing_module import process_pdf_with_embeddings
 from settings import Environment
+from utils import extract_snippet_with_context
 
 # --- PDFplumber Warning Silencing ---
 # Suppress noisy warnings from pdfplumber about invalid float values
