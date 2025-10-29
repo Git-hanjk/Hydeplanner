@@ -187,10 +187,10 @@ Your report must adhere to the following rules:
     * **Do not use information from the initial claims (Phase 1) if it is not supported or verified by the evidence.**
     * **Do not invent facts, data, or sources** not present in the provided evidence.
 
-3.  **Prioritize the "So What?" (Strategic Implication):**
+3.  **Prioritize the Strategic Implication:**
     * Do not just list facts. Your primary value is to **connect the dots** and answer **"So What?"**
     * **Identify the core strategic mechanism or insight** (likely found in the 'Exploratory' evidence, e.g., a "tariff exemption mechanism").
-    * Analyze the **competitive advantage, risk, or strategic benefit** of this finding (e.g., "This mechanism gives TSMC a 'Competitive Positioning Benefit' because..."). This analysis is the most critical part of your report.
+    * Analyze the **advantage, risk, or strategic benefit or insight** of this finding (e.g., "This mechanism gives TSMC a 'Competitive Positioning Benefit' because..."). This analysis is the most critical part of your report.
 
 4.  **Citation:** For each key point, synthesized claim, or inference, you **must cite the source(s)** found within the evidence. Use a simple citation format like `[Source: title of the search result]`.
 

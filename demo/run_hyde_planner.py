@@ -32,6 +32,7 @@ import json_repair
 from PIL import Image, ImageDraw, ImageFont
 import markdown
 import io
+import re
 
 # --- Font Management ---
 def download_font(language: str = "English") -> str:
@@ -290,27 +291,31 @@ async def run_hyde_planner(env: Environment, model: str, query: str, time_period
     yield status
     p1_res = await phase_1_generate_hypothetical_document(env, model, query, language)
     tracking["prompt_tokens"] += p1_res["p_tokens"]; tracking["completion_tokens"] += p1_res["c_tokens"]
+    log_data["phases"]["1_hypothetical_document"] = p1_res["doc"]
+    yield {"title": "Phase 1: Hypothetical Document", "content": p1_res["doc"], "format": "markdown"}
     if p1_res.get("error"):
         error_msg = f"Error in Phase 1: {p1_res['error']}"
         log_data["status_updates"].append(error_msg)
         yield error_msg
         yield log_data
         return
-    log_data["phases"]["1_hypothetical_document"] = p1_res["doc"]
 
     status = "Phase 2: Reverse-Engineering Research Plan..."
     log_data["status_updates"].append(status)
     yield status
     p2_res = await phase_2_reverse_engineer_plan(env, model, p1_res["doc"], use_arxiv, use_finance, use_local_search, language)
     tracking["prompt_tokens"] += p2_res["p_tokens"]; tracking["completion_tokens"] += p2_res["c_tokens"]
+    log_data["phases"]["2_research_plan"] = p2_res["plan"]
     if p2_res.get("error"):
+        log_data["phases"]["2_raw_plan_output"] = p2_res.get("raw_text")
+        yield {"title": "Phase 2: Raw Plan Output (JSON Error)", "content": p2_res.get("raw_text"), "format": "text", "expanded": True}
         error_msg = f"Error in Phase 2: {p2_res['error']}"
         log_data["status_updates"].append(error_msg)
-        log_data["phases"]["2_raw_plan_output"] = p2_res.get("raw_text")
         yield error_msg
         yield log_data
         return
-    log_data["phases"]["2_research_plan"] = p2_res["plan"]
+    else:
+        yield {"title": "Phase 2: Research Plan", "content": p2_res["plan"], "format": "json"}
 
     status = "Phase 3: Executing Plan and Verifying Claims..."
     log_data["status_updates"].append(status)
@@ -320,19 +325,21 @@ async def run_hyde_planner(env: Environment, model: str, query: str, time_period
     for log_entry in p3_res["logs"]:
         yield log_entry
     log_data["phases"]["3_collected_evidence"] = p3_res["evidence"]
+    yield {"title": "Phase 3: Execution & Verification", "content": p3_res["evidence"], "format": "json"}
 
     status = "Phase 4: Synthesizing Final Answer..."
     log_data["status_updates"].append(status)
     yield status
     p4_res = await phase_4_synthesize_final_answer(env, model, query, p2_res["plan"], p3_res["evidence"], language)
     tracking["prompt_tokens"] += p4_res["p_tokens"]; tracking["completion_tokens"] += p4_res["c_tokens"]
+    log_data["phases"]["final_answer"] = p4_res["answer"]
+    yield {"title": "Final Answer", "content": p4_res["answer"], "format": "markdown", "expanded": True}
     if p4_res.get("error"):
         error_msg = f"Error in Phase 4: {p4_res['error']}"
         log_data["status_updates"].append(error_msg)
         yield error_msg
         yield log_data
         return
-    log_data["phases"]["final_answer"] = p4_res["answer"]
 
     tracking["duration"] = time.time() - start_time
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -348,11 +355,11 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
     # --- Run original HyDE Planner ---
     initial_hyde_log = None
     initial_hyde_runner = run_hyde_planner(env, model, query, time_period, search_depth, search_pdfs, pdf_processing_method, save_pdf_embeddings, use_arxiv, use_finance, use_local_search, language)
-    async for status in initial_hyde_runner:
-        if isinstance(status, str):
-            yield status
+    async for update in initial_hyde_runner:
+        if isinstance(update, (str, dict)):
+            yield update
         else:
-            initial_hyde_log = status
+            initial_hyde_log = update
 
     # --- Merge initial log data ---
     log_data["status_updates"].extend(initial_hyde_log.get("status_updates", []))
@@ -381,6 +388,7 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
     try:
         gap_plan = json_repair.loads(gap_response)
         log_data["phases"]["5_gap_analysis"] = gap_plan
+        yield {"title": "Phase 5: Gap Analysis", "content": gap_plan, "format": "json"}
     except json.JSONDecodeError as e:
         error_msg = f"Error in Phase 5: Failed to decode JSON from gap analysis: {e}"
         log_data["status_updates"].append(error_msg)
@@ -412,6 +420,7 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
         gap_evidence[claim_id] = search_results
     log_data["status_updates"].extend(gap_logs)
     log_data["phases"]["6_gap_evidence"] = gap_evidence
+    yield {"title": "Phase 6: Gap-Filling Evidence", "content": gap_evidence, "format": "json"}
 
     # --- Phase 7: Final Synthesis with Reflection ---
     status = "Phase 7: Synthesizing final answer with new evidence..."
@@ -421,6 +430,7 @@ async def run_hyde_planner_with_reflection(env: Environment, model: str, query: 
     final_answer, p_tokens, c_tokens = await call_llm(env, model, final_synth_prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
     log_data["phases"]["final_answer"] = final_answer # Overwrite the old final answer
+    yield {"title": "Final Answer (with Reflection)", "content": final_answer, "format": "markdown", "expanded": True}
 
     tracking["duration"] = time.time() - start_time
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -444,6 +454,7 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
     try:
         decomposed_plan = json_repair.loads(response_text)
         log_data["phases"]["1_decomposed_plan"] = decomposed_plan
+        yield {"title": "Phase 1: Decomposed Plan", "content": decomposed_plan, "format": "json"}
     except json.JSONDecodeError as e:
         error_msg = f"Error in Phase 1: Failed to decode JSON from decomposition: {e}"
         log_data["status_updates"].append(error_msg)
@@ -476,6 +487,7 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
         evidence[f"sub_query_{i+1}"] = {"query": sub_query, "results": search_results}
     log_data["status_updates"].extend(logs)
     log_data["phases"]["2_collected_evidence"] = evidence
+    yield {"title": "Phase 2: Collected Evidence", "content": evidence, "format": "json"}
 
     # Phase 3: Synthesize Final Answer
     status = "Phase 3: Synthesizing final answer from all results..."
@@ -485,6 +497,7 @@ async def run_query_decomposition_search(env: Environment, model: str, query: st
     answer, p_tokens, c_tokens = await call_llm(env, model, prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
     log_data["phases"]["final_answer"] = answer
+    yield {"title": "Final Answer", "content": answer, "format": "markdown", "expanded": True}
 
     tracking["duration"] = time.time() - start_time
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -504,7 +517,6 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
         log_data["status_updates"].append(status)
         yield status
         
-        # Phase 1: Reflection and Planning
         prompt = get_reflection_prompt(query, conversation_history, use_arxiv, use_finance, use_local_search, language)
         response_text, p_tokens, c_tokens = await call_llm(env, model, prompt)
         tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
@@ -513,10 +525,10 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
             reflection_plan = json_repair.loads(response_text)
             log_data["phases"][f"turn_{turn}_reflection"] = reflection_plan
             conversation_history += f"\nTurn {turn} Reflection: {reflection_plan.get('reflection', '')}"
+            yield {"title": f"Turn {turn}: Reflection & Plan", "content": reflection_plan, "format": "json"}
         except json.JSONDecodeError as e:
             error_msg = f"Error in Turn {turn}: Failed to decode reflection JSON: {e}"
             log_data["status_updates"].append(error_msg)
-            log_data["phases"][f"turn_{turn}_raw_reflection_output"] = response_text
             yield error_msg
             break
 
@@ -526,7 +538,6 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
             yield final_answer_msg
             break
 
-        # Phase 2: Execution
         next_query_data = reflection_plan.get("next_query")
         if not next_query_data or not next_query_data.get("query"):
             no_query_msg = "Agent did not provide a next query. Ending run."
@@ -550,6 +561,7 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
         
         log_data["phases"][f"turn_{turn}_evidence"] = search_results
         conversation_history += f"\nExecuted Query: '{search_query}'\nResults:\n{json.dumps(search_results, indent=2)}"
+        yield {"title": f"Turn {turn}: Evidence", "content": search_results, "format": "json"}
 
     # Final Synthesis
     final_synth_msg = "Final Phase: Synthesizing answer from conversation history..."
@@ -559,6 +571,7 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
     answer, p_tokens, c_tokens = await call_llm(env, model, prompt)
     tracking["prompt_tokens"] += p_tokens; tracking["completion_tokens"] += c_tokens
     log_data["phases"]["final_answer"] = answer
+    yield {"title": "Final Answer", "content": answer, "format": "markdown", "expanded": True}
 
     tracking["duration"] = time.time() - start_time
     tracking["total_tokens"] = tracking["prompt_tokens"] + tracking["completion_tokens"]
@@ -566,26 +579,51 @@ async def run_sequential_reflection_search(env: Environment, model: str, query: 
     log_data["performance_summary"] = tracking
     yield log_data
 
-# ... (Other runner functions would be refactored similarly) ...
-
 # --- Display Functions ---
+
+def style_sources(text: str) -> str:
+    """Finds [Source:...] tags and wraps them in styled spans for better readability."""
+    if not text:
+        return ""
+    # Use a non-greedy match for the content inside the brackets
+    pattern = r'(\[Source:.*?\])'
+    
+    def replace_match(match):
+        # The matched string is the full '[Source:...]'
+        matched_text = match.group(0)
+        return f"<span style='font-size: 0.8em; color: #888;'>{matched_text}</span>"
+        
+    return re.sub(pattern, replace_match, text)
+
+def style_sources(text: str) -> str:
+    """Finds [Source:...] tags and wraps them in styled spans for better readability."""
+    if not text:
+        return ""
+    # Use a non-greedy match for the content inside the brackets
+    pattern = r'(\[Source:.*?\])'
+    
+    def replace_match(match):
+        # The matched string is the full '[Source:...]'
+        matched_text = match.group(0)
+        return f"<span style='font-size: 0.8em; color: #888;'>{matched_text}</span>"
+        
+    return re.sub(pattern, replace_match, text)
 
 def display_tracking_info(info: dict):
     st.info(f"- **Execution Time:** {info.get('duration', 0):.2f} seconds\n"
             f"- **Total Tokens:** {info.get('total_tokens', 0)}\n"
             f"- **Estimated Cost:** ${info.get('total_cost', 0):.6f}")
 
-def display_run_results(log_data: Dict[str, Any], font_path: str, show_log: bool = True):
+def display_run_results(log_data: Dict[str, Any], font_path: str):
     methodology = log_data.get("methodology", "Unknown")
     st.markdown(f"<hr style='margin: 2rem 0; border-top: 2px solid #bbb;'>", unsafe_allow_html=True)
     st.header(f"Results for: {methodology}")
 
-    if show_log:
-        with st.expander("Full Execution Log", expanded=False):
-            for status in log_data.get("status_updates", []):
-                if status.startswith("Warning:"): st.warning(status)
-                elif status.startswith("Error:"): st.error(status)
-                else: st.info(status)
+    with st.expander("Full Execution Log", expanded=False):
+        for status in log_data.get("status_updates", []):
+            if status.startswith("Warning:"): st.warning(status)
+            elif status.startswith("Error:"): st.error(status)
+            else: st.info(status)
 
     phases = log_data.get("phases", {})
     key_suffix = methodology.lower().replace(" ", "_")
@@ -607,7 +645,7 @@ def display_run_results(log_data: Dict[str, Any], font_path: str, show_log: bool
     final_answer = phases.get("final_answer")
     if final_answer:
         with st.expander("Final Answer", expanded=True):
-            st.markdown(final_answer)
+            st.markdown(style_sources(final_answer), unsafe_allow_html=True)
             if st.button('Copy report text', key=f'{key_suffix}_copy'):
                 st.code(final_answer)
             save_report_as_image(final_answer, f"{key_suffix}_report", font_path)
@@ -636,7 +674,6 @@ async def main():
     language_options = {"English": "English", "Korean": "Korean", "Chinese": "Chinese", "Japanese": "Japanese", "Spanish": "Spanish", "French": "French"}
     selected_language = language_options[st.sidebar.selectbox("Select Language", options=list(language_options.keys()))]
     
-    # Download font based on language and store it in session state
     st.session_state.font_path = download_font(selected_language)
 
     model_name = st.sidebar.selectbox("Select LLM", options=["gemini-2.5-pro", "gemini-2.5-flash"], index=0)
@@ -656,7 +693,6 @@ async def main():
     use_finance = st.sidebar.checkbox("Search yfinance_statements", value=False)
     use_local_search = st.sidebar.checkbox("Search Local Documents", value=False)
     
-    # ... (rest of the sidebar is similar) ...
     query = st.sidebar.text_area("Enter your research query:", "What were the key factors contributing to the decline of the woolly mammoth population?", height=150)
     
     available_methods = ["HyDE-Planner", "HyDE-Planner with 2nd Reflection", "Query Decomposition Search", "Sequential-Reflection Search"]
@@ -670,15 +706,13 @@ async def main():
         else:
             st.session_state.run_logs = []
             
-            results_area = st.container()
-
             for methodology in selected_methods:
                 run_log = None
                 runner_args = (env, model_name, query, time_period, search_depth, search_pdfs, "Keyword Match (Fast)", False, use_arxiv, use_finance, use_local_search, selected_language)
                 
-                with results_area:
-                    run_output_container = st.container()
-                    run_output_container.header(f"Running: {methodology}")
+                run_output_container = st.container()
+                run_output_container.header(f"Running: {methodology}")
+                live_log_area = run_output_container.container()
 
                 runner = None
                 if methodology == "HyDE-Planner":
@@ -691,16 +725,38 @@ async def main():
                     runner = run_sequential_reflection_search(*runner_args)
 
                 if runner:
-                    async for status in runner:
-                        if isinstance(status, str):
-                            run_output_container.info(status)
+                    async for update in runner:
+                        if isinstance(update, str):
+                            live_log_area.info(update)
+                        elif isinstance(update, dict) and "title" in update:
+                            expanded = update.get("expanded", False)
+                            with run_output_container.expander(update["title"], expanded=expanded):
+                                content = update.get("content")
+                                fmt = update.get("format", "text")
+                                if fmt == "markdown":
+                                    if expanded:
+                                        st.markdown(style_sources(content or ""), unsafe_allow_html=True)
+                                    else:
+                                        st.markdown(content or "")
+                                elif fmt == "json":
+                                    st.json(content or {})
+                                else:
+                                    st.text(content or "")
+                                
+                                if expanded and content: # Assumes final answer
+                                    key_suffix = methodology.lower().replace(" ", "_")
+                                    save_report_as_image(content, f"{key_suffix}_report", st.session_state.font_path)
+                                    save_report_as_document(content, f"{key_suffix}_report")
+                                    save_report_as_pdf(content, f"{key_suffix}_report", st.session_state.font_path)
                         else:
-                            run_log = status
+                            run_log = update
                 
                 if run_log:
                     st.session_state.run_logs.append(run_log)
                     with run_output_container:
-                        display_run_results(run_log, st.session_state.font_path, show_log=False)
+                        if run_log.get("performance_summary"):
+                            st.success(f"{methodology} finished.")
+                            display_tracking_info(run_log["performance_summary"])
 
                     if log_to_file:
                         log_dir = os.path.join(os.path.dirname(__file__), "logs")
@@ -710,7 +766,6 @@ async def main():
                             json.dump(run_log, f, indent=2)
                         st.sidebar.success(f"Log saved to {filename}")
 
-    # --- Display Area for subsequent reruns (e.g., after widget interaction) ---
     elif st.session_state.run_logs:
         for log in st.session_state.run_logs:
             display_run_results(log, st.session_state.font_path)
