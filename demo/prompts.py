@@ -1,6 +1,6 @@
 # prompts.py for HyDE-Planner
 
-def get_hyde_generation_prompt(query: str) -> str:
+def get_hyde_generation_prompt(query: str, language: str = "English") -> str:
     """
     [Improved Prompt] Generates a prompt for Phase 1: Hypothetical Document Generation (HyDE).
     
@@ -31,17 +31,19 @@ Now, please generate the detailed hypothetical document based on the following i
 
 # Analysis of Query: [Main Topic of Query]
 
-## Hypothesis 1: [The First Key Hypothesis/Mechanism (e.g., The Legal/Regulatory Angle)]
-(A detailed explanation of this hypothesis. Include specific, verifiable claims about policies, laws, specific terms, key people, or agencies involved...)
+## Hypothesis 1: [The First Key Hypothesis/Mechanism]
+(A detailed explanation of this hypothesis. Include specific, verifiable claims)
 
-## Hypothesis 2: [The Second Key Hypothesis/Mechanism (e.g., The Economic/Competitive Angle)]
-(A detailed explanation from a different perspective than Hypothesis 1. Include specific claims about market trends, competitor actions, financial impacts...)
+## Hypothesis 2: [The Second Key Hypothesis/Mechanism]
+(A detailed explanation from a different perspective than Hypothesis 1. Include specific, verifiable claims)
 
 ## Hypothesis 3: [The Third Key Hypothesis/Mechanism (e.g., The Non-Obvious 'Dark Horse' Angle)]
 (The most unexpected or counter-intuitive hypothesis that, if true, would have a significant impact. Provide specific rationale and claims for it...)
+
+Please write the document in {language}.
 """
 
-def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
+def get_plan_reverse_engineering_prompt(hypothetical_document: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
     """
     [개선된 프롬프트] 2단계: 계획 역설계 (PRE)를 위한 프롬프트를 생성합니다.
     
@@ -121,10 +123,10 @@ Here is the document to analyze:
 {hypothetical_document}
 ---
 
-Now, generate the JSON research plan.
+Now, generate the JSON research plan. Please write the JSON research plan in {language}.
 """
 
-def get_verification_and_synthesis_prompt(original_query: str, research_plan: dict, evidence: dict) -> str:
+def get_verification_and_synthesis_prompt(original_query: str, research_plan: dict, evidence: dict, language: str = "English") -> str:
     """
     [개선된 프롬프트] 3단계: 검증 및 종합을 위한 프롬프트를 생성합니다.
     
@@ -206,10 +208,10 @@ CLAIMS, QUERIES, AND EVIDENCE ---
 ---
 END OF CLAIMS, QUERIES, AND EVIDENCE ---
 
-Now, please synthesize the final, verified analysis based *only* on the provided evidence, following all the rules above.
+Now, please synthesize the final, verified analysis based *only* on the provided evidence, following all the rules above. Please write the final response in {language}.
 """
 
-def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
+def get_query_decomposition_prompt(query: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
     """
     Generates a prompt to decompose a complex query into several simpler sub-queries.
     """
@@ -253,10 +255,10 @@ Example format:
 
 User Query: "{query}"
 
-Now, generate the JSON object with the decomposed sub-queries.
+Now, generate the JSON object with the decomposed sub-queries. Please write the JSON object in {language}.
 """
 
-def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
+def get_reflection_prompt(query: str, conversation_history: str, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
     """
     Generates a prompt for the reflection step in a sequential search process.
     """
@@ -311,10 +313,10 @@ Conversation History:
 {conversation_history}
 ---
 
-Now, provide your reflection and the next action in the specified JSON format.
+Now, provide your reflection and the next action in the specified JSON format. Please write the JSON object in {language}.
 """
 
-def get_synthesis_from_conversation_prompt(query: str, conversation_history: str) -> str:
+def get_synthesis_from_conversation_prompt(query: str, conversation_history: str, language: str = "English") -> str:
     """
     Generates a prompt to synthesize a final answer from a conversation history.
     """
@@ -343,10 +345,10 @@ Conversation History:
 {conversation_history}
 ---
 
-Now, please synthesize the final, verified analysis based only on the evidence found within the provided conversation history, following all the rules above.
+Now, please synthesize the final, verified analysis based only on the evidence found within the provided conversation history, following all the rules above. Please write the final response in {language}.
 """
 
-def get_synthesis_from_search_results_prompt(original_query: str, search_results: dict) -> str:
+def get_synthesis_from_search_results_prompt(original_query: str, search_results: dict, language: str = "English") -> str:
     """
     Generates a prompt to synthesize a final answer from a collection of search results.
     """
@@ -376,10 +378,10 @@ Original User Query: "{original_query}"
 ---
 END OF SEARCH RESULTS ---
 
-Now, please synthesize the final, verified analysis based only on the provided search results, following all the rules above.
+Now, please synthesize the final, verified analysis based only on the provided search results, following all the rules above. Please write the final response in {language}.
 """
 
-def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False) -> str:
+def get_information_gap_prompt(original_query: str, first_pass_answer: str, previous_queries: list, use_arxiv: bool = False, use_finance: bool = False, use_local_search: bool = False, language: str = "English") -> str:
     """
     Generates a prompt to identify information gaps in a first-pass answer and create a search query.
     """
@@ -431,10 +433,10 @@ First-Pass Answer:
 {first_pass_answer}
 ---
 
-Now, generate the JSON object identifying the information gap and a new list of search queries.
+Now, generate the JSON object identifying the information gap and a new list of search queries. Please write the JSON object in {language}.
 """
 
-def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict) -> str:
+def get_synthesis_with_reflection_prompt(original_query: str, first_pass_answer: str, gap_search_results: dict, language: str = "English") -> str:
     """
     Generates a prompt to synthesize a final answer using an initial answer and new evidence found to fill an information gap.
     """
@@ -471,5 +473,5 @@ END OF FIRST-PASS ANSWER ---
 ---
 END OF EVIDENCE FOR INFORMATION GAP ---
 
-Now, please synthesize the final, comprehensive analysis by integrating the new evidence into the first-pass answer, following all the rules above.
+Now, please synthesize the final, comprehensive analysis by integrating the new evidence into the first-pass answer, following all the rules above. Please write the final response in {language}.
 """
