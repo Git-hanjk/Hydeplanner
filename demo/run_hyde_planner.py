@@ -689,6 +689,17 @@ async def main():
 
     log_to_file = st.sidebar.checkbox("Save run log to file", value=True)
     search_pdfs = st.sidebar.checkbox("Include PDF results in search", value=False)
+    pdf_processing_method = "Keyword Match (Fast)"
+    save_pdf_embeddings = False
+    if search_pdfs:
+        pdf_processing_method = st.sidebar.radio(
+            "PDF Processing Method",
+            ["Keyword Match (Fast)", "Vector Embedding (Accurate)"],
+            index=0
+        )
+        if "Vector Embedding" in pdf_processing_method:
+            save_pdf_embeddings = st.sidebar.checkbox("Save PDF embeddings for future use", value=True)
+
     use_arxiv = st.sidebar.checkbox("Search ArXiv", value=False)
     use_finance = st.sidebar.checkbox("Search yfinance_statements", value=False)
     use_local_search = st.sidebar.checkbox("Search Local Documents", value=False)
@@ -708,7 +719,7 @@ async def main():
             
             for methodology in selected_methods:
                 run_log = None
-                runner_args = (env, model_name, query, time_period, search_depth, search_pdfs, "Keyword Match (Fast)", False, use_arxiv, use_finance, use_local_search, selected_language)
+                runner_args = (env, model_name, query, time_period, search_depth, search_pdfs, pdf_processing_method, save_pdf_embeddings, use_arxiv, use_finance, use_local_search, selected_language)
                 
                 run_output_container = st.container()
                 run_output_container.header(f"Running: {methodology}")

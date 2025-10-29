@@ -79,7 +79,7 @@ def process_pdf_with_embeddings(pdf_url: str, query: str, num_relevant_chunks: i
 
     try:
         if index is None or not chunks:
-            response = requests.get(pdf_url, timeout=20)
+            response = requests.get(pdf_url, timeout=5)
             response.raise_for_status()
             pdf_file = BytesIO(response.content)
 

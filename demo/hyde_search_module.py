@@ -61,7 +61,7 @@ session.headers.update({
 def extract_pdf_text(url: str) -> str:
     """Extract text from a PDF URL."""
     try:
-        response = session.get(url, timeout=10, verify=False)
+        response = session.get(url, timeout=5, verify=False)
         response.raise_for_status()
         text = ""
         with pdfplumber.open(BytesIO(response.content)) as pdf:
@@ -92,7 +92,7 @@ def get_content_from_url(url: str, pdf_processing_method: str = "Keyword Match (
             return extract_pdf_text(url)
 
     try:
-        response = session.get(url, timeout=10, verify=False)
+        response = session.get(url, timeout=5, verify=False)
         response.raise_for_status()
         response.encoding = response.apparent_encoding
         soup = BeautifulSoup(response.text, 'html.parser')
